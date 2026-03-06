@@ -100,7 +100,7 @@ dbWriteTable(conn = implan,
 
 
 
-# CIP´s
+# 
 
 cip <- read_csv(file = 'datos/clasificaciones/cip.csv',
                 col_names = TRUE)
@@ -1373,7 +1373,7 @@ dbWriteTable(implan,
 
 
 ## Personas que hablan lengua indígena en Benito Juárez ----
-pob_lengua <-censo_2020 %>% 
+pob_lengua <- censo_2020 %>% 
   filter(ent =='23' & mun == '005') %>% 
   select(edad, sexo, hlengua, factor) %>% 
   filter(!is.na(hlengua)) %>% 
@@ -1434,3 +1434,30 @@ dbWriteTable(conn = implan,
              name = Id (schema = 'coati_tablas_finales',
                         table = 'i_lenguas'),
              value = lenguas)
+
+
+# las personas que no hablan español y sólo hablan maya, si son muchas persoans espacializar depsués para ver dónde están.
+# agarrar a las personas que hablan lengua indígena,  
+# de esas personas que hablan lengua indígena, agarrar las personas que no hablan español
+
+censo_2020 %>% 
+  filter(ent == '23', mun == '005') %>% 
+  mutate(habla_indigena = case_when(hlengua == '1' ~ 'Sí habla alguna lengua indígena',
+                                    hlengua == '3' ~ 'No habla lengua indígena',
+                                    T ~ 'No especificado')) %>% 
+  group_by(habla_indigena) %>% 
+  count(wt = factor) %>% 
+  collect() %>% 
+  view()
+
+censo_2020 %>% 
+  filter(ent == '23', mun == '005') %>% 
+  mutate(no_habla_español = case_when(hespanol == '1' ~ 'Sí habla también español',
+                                      hespanol == '3' ~ 'No habla español',
+                                    T ~ 'No especificado')) %>% 
+  group_by(no_habla_español) %>% 
+  count(wt = factor) %>% 
+  collect() %>% 
+  view()
+  
+  

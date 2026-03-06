@@ -1,3 +1,10 @@
+# Librerías ----
+library(tidyverse)
+library(sf)
+library(gghighlight)
+library(remotes)
+library(ggsankey)
+
 
 # Vivienda y hábitat urbano ----
 
