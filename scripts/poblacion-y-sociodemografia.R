@@ -910,7 +910,7 @@ dbWriteTable(implan,
              value = analfabetismo_espacializado,
              overwrite = T)
 
-## Derechohabiencia comparado con la media nacional
+## Derechohabiencia comparado con la media nacional ----
 
 censo_2020 <- tbl(src = implan,
                   Id (schema = 'coati',
@@ -939,13 +939,14 @@ derechohabiencia <- censo_2020 %>%
   arrange(desc(personas)) %>% 
   collect()
 
+view(derechohabiencia)
 dbWriteTable(conn = implan,
              name = Id (schema = 'coati_tablas_finales',
                         table = 'f_derechohabiencia_por_institucion'),
              value = derechohabiencia,
              overwrite = TRUE)
 
-### Derechohabiencia por sector  ----
+## Derechohabiencia por sector  ----
 
 dh <- censo_2020 %>% 
   filter(ent == '23', mun == '005') %>% 

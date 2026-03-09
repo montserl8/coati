@@ -5,6 +5,16 @@ library(gghighlight)
 library(remotes)
 library(ggsankey)
 
+supermanzanas <- read_sf(implan, 
+                         Id (schema = 'base',
+                             table = 'supermanzanas'))
+censo_2020 <- tbl(src = implan,
+                  Id (schema = 'coati',
+                      table = 'censo_2020'))
+
+manz_ageb <- tbl(siginplan,
+                 Id(schema = '00_base',
+                    table = 'manzanas_codigos'))
 
 # Movilidad y Accesibilidad  ----- 
 ## Medios de tranporte ----
@@ -191,4 +201,3 @@ dbWriteTable(conn = implan,
 supermanzanas %>%
   select(id_supermanzana, geom, vph_ndacmm, vph_autom, vph_moto, vph_bici, tvivparhab) %>% 
   
-  mutate(porcentajes)
