@@ -150,7 +150,7 @@ densidad_pob_AL <- densidad_poblacion %>%
   select(`Country Code`, `Country Name`, `1990`, `2000`, `2010`, `2020`)  %>% 
   pivot_longer(cols = where(is.numeric))
 
-## Tasa de creimiento anual ----
+## Tasa de crecimiento anual ----
 densidad_pob_AL <- densidad_pob_AL %>% 
   arrange(`Country Name`, name) %>% 
   group_by(`Country Name`) %>% 
@@ -217,7 +217,7 @@ p <- ggplot() +
             alpha = 1,
             linewidth = 2)
 
-### Población total de Cancún por año desde 1980
+### Población de Cancún desde 1970 -----
 # los números 1980 son del INEGI, hoja: Población total, por entidad federativa y municipio, según sexo
 # y el resto de 1970 a 1975 son del libro QUINTANA ROO: CUATRO DÉCADAS DE VIDA MUNICIPIO INDEPENDIENTE
 
@@ -232,7 +232,7 @@ tampobcun <-tribble(~entidad, ~anio, ~tampob,
                     'Cancún', '2000', 572973,
                     'Cancún', '2010', 661176,
                     'Cancún', '2020', 911503,)
-plot(tampobcun, )
+plot(tampobcun)
 dbWriteTable(implan, 
              name = Id (schema = 'coati_tablas_finales',
                         table = ' aa_crecimiento_pob_cun'),

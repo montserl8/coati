@@ -1,12 +1,63 @@
+install.packages("foreign")
+
 # Librerías! ----
 library(tidyverse)
 library(sf)
 library(gghighlight)
 library(remotes)
 library(ggsankey)
+library(foreign)
+
 
 
 # Vivienda y hábitat urbano ----
+
+# viviendas totales en Benito Juárez en 1990: 41557 lo sacamos del ITER_23XLS90 ----
+# viviendas totales en Benito Juárez en 2020: 319754 lo sacamos de base.supermanzanas ---- 
+
+files <- list.files('..')
+df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal1990.dbf",
+               as.is = T)
+df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal1995.dbf",
+               as.is = T)
+df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal2000.dbf",
+               as.is = T)
+df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal2005.dbf",
+               as.is = T)
+df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal2010.dbf",
+               as.is = T) %>% 
+  as.tibble() 
+
+df <- df [,1:46] 
+
+df <- df %>% 
+  subset(ENTIDAD == '23' &
+           MUN == '005')
+
+as.integer(df[1,c('T_VIVHAB')])
+
+colnames(df)
+# Cálculo de la tasa de crecimiento anual de 1990 a 2020
+(((px/po)^(1/t))-1)*100
+
+# Asiganción de variables
+po <- 117
+px <- 911503
+t <- 50
+
+# Crecimiento de la vivienda en Cancún desde 1980 ---
+
+tampobcun <-tribble(~anio, ~numero_viviendas,
+                    '1970', 117,
+                    '1971', 845,
+                    '1973', 2780,
+                    '1975', 15122,
+                    '1980', 37190,
+                    '1990', 311696,
+                    '1995', 419815,
+                    '2000', 572973,
+                    '2010', 661176,
+                    '2020', 911503,)
 
 ### Crecimiento de la mancha urbana  ----- 
 ### Infraestructura urbana vías primarias y secundarias ----
