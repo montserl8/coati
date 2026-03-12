@@ -1,4 +1,3 @@
-install.packages("foreign")
 
 # Librerías! ----
 library(tidyverse)
@@ -15,50 +14,48 @@ library(foreign)
 # viviendas totales en Benito Juárez en 1990: 41557 lo sacamos del ITER_23XLS90 ----
 # viviendas totales en Benito Juárez en 2020: 319754 lo sacamos de base.supermanzanas ---- 
 
-files <- list.files('..')
-df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal1990.dbf",
-               as.is = T)
-df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal1995.dbf",
-               as.is = T)
-df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal2000.dbf",
-               as.is = T)
 df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal2005.dbf",
-               as.is = T)
-df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal2010.dbf",
                as.is = T) %>% 
-  as.tibble() 
+  as.tibble()
 
-df <- df [,1:46] 
+colnames(df)
 
-df <- df %>% 
+df <- df [,1:130] 
+
+df_05 <- df %>% 
   subset(ENTIDAD == '23' &
            MUN == '005')
 
-as.integer(df[1,c('T_VIVHAB')])
+as.integer(df_05[1,c('T_VIVHAB')])
 
-colnames(df)
+# Asiganción de variables
+po <- 41557
+px <- 319754
+t <- 2020-1990
+
 # Cálculo de la tasa de crecimiento anual de 1990 a 2020
 (((px/po)^(1/t))-1)*100
 
-# Asiganción de variables
-po <- 117
-px <- 911503
-t <- 50
+# Crecimiento de la vivienda en Cancún desde 1990 ---
 
-# Crecimiento de la vivienda en Cancún desde 1980 ---
+crecimiento_viviendas <-tribble( ~anio, ~numero_viviendas,
+                                 1990, 41557,
+                                 1995, 78832,
+                                 2000, 106891,
+                                 2005, 147914,
+                                 2010, 246307,
+                                 2020, 319754)
 
-tampobcun <-tribble(~anio, ~numero_viviendas,
-                    '1970', 117,
-                    '1971', 845,
-                    '1973', 2780,
-                    '1975', 15122,
-                    '1980', 37190,
-                    '1990', 311696,
-                    '1995', 419815,
-                    '2000', 572973,
-                    '2010', 661176,
-                    '2020', 911503,)
+# Crecimiento porcentual de la vivienda en Cancún 
+crecimiento_viviendas <- crecimiento_viviendas %>% 
+  mutate(crecimiento = round(numero_viviendas - lag(numero_viviendas),1)/(numero_viviendas)* 100,
+         etiqueta = paste(lag(anio), anio, sep = '-'))
+  
 
+dbWriteTable(implan,
+             name = Id (schema = 'coati_tablas_finales',
+                        table = 'ja_crecimiento_vivienda'),
+             value = crecimiento_viviendas)
 ### Crecimiento de la mancha urbana  ----- 
 ### Infraestructura urbana vías primarias y secundarias ----
 # las hizo Adrián 

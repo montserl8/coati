@@ -17,3 +17,4 @@ censo_2020 <- tbl(src = implan,
 manzanas <- tbl(siginplan,
                  Id(schema = '00_base',
                     table = 'manzanas_codigos'))
+# Funciones ----
