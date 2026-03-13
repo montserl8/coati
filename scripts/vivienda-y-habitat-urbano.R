@@ -11,6 +11,48 @@ library(foreign)
 
 # Vivienda y hábitat urbano ----
 
+#procesamiento del cálculo de la mancha urbana ------
+library(terra)
+library(sf)
+
+limite_municipal <- read_sf(implan,
+                            Id (schema = 'base',
+                                table = 'limite_municipal'))
+
+limite_municipal <- limite_municipal %>% 
+  st_transform(st_crs(mancha_1975))
+
+manchas <- list.files(path = "../procesamiento-coati/datos/mancha_urbana/",
+                      pattern = ".tif$",
+                      recursive = T,
+                      full.names = T)
+
+manchas <- lapply(manchas, function(mancha){ 
+  
+  mancha_1975 <- rast(mancha)
+  
+  
+  mancha_1975 <- mancha_1975 %>% 
+    crop(limite_municipal) 
+  
+  mancha_1975 <- app(mancha_1975, function(x) ifelse(x == 0,
+                                                     NA, x)) 
+  
+  mancha_1975 <- project(mancha_1975, 'epsg:4326')
+})
+
+
+plot(manchas[[10]])
+
+manchas_urbanas <- rast(manchas)
+
+manchas_urbanas <- app(manchas_urbanas, function(x) ifelse(is.na(x),
+                                                           x, 1))
+
+as.polygons(manchas_urbanas) %>% 
+  st_as_sf()
+
+
 # viviendas totales en Benito Juárez en 1990: 41557 lo sacamos del ITER_23XLS90 ----
 # viviendas totales en Benito Juárez en 2020: 319754 lo sacamos de base.supermanzanas ---- 
 
