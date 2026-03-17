@@ -6,27 +6,11 @@ library(gghighlight)
 library(remotes)
 library(ggsankey)
 library(foreign)
-
-
+library(terra)
 
 # Vivienda y hábitat urbano ----
 
-#procesamiento del cálculo de la mancha urbana ------
-library(terra)
-library(sf)
-
-limite_municipal <- read_sf(implan,
-                            Id (schema = 'base',
-                                table = 'limite_municipal'))
-
-limite_municipal <- limite_municipal %>% 
-  st_transform(st_crs(mancha_1975))
-
-manchas <- list.files(path = "../procesamiento-coati/datos/mancha_urbana/",
-                      pattern = ".tif$",
-                      recursive = T,
-                      full.names = T)
-
+# procesamiento del cálculo de la mancha urbana ------
 manchas <- lapply(manchas, function(mancha){ 
   
   mancha_1975 <- rast(mancha)
@@ -41,15 +25,38 @@ manchas <- lapply(manchas, function(mancha){
   mancha_1975 <- project(mancha_1975, 'epsg:4326')
 })
 
+limite_municipal <- read_sf(implan,
+                            Id (schema = 'base',
+                                table = 'limite_municipal'))
 
-plot(manchas[[10]])
+manchas <- list.files(path = "../procesamiento-coati/datos/mancha_urbana/",
+                      pattern = ".tif$",
+                      recursive = T,
+                      full.names = T)
 
-manchas_urbanas <- rast(manchas)
+manchas_procesadas <- lapply(manchas, function(manchas){ 
+  
+  raster_manchas <- rast(manchas)
+  
+  limite_municipal <- limite_municipal %>% 
+    st_transform(crs(raster_manchas)) %>% 
+    vect()
+ 
+  corte_a_bj <- crop(raster_manchas, limite_municipal)
+  
+ 
+  manchas_urbanas <- app(corte_a_bj, function(x) ifelse(x == 0, NA, x))
 
-manchas_urbanas <- app(manchas_urbanas, function(x) ifelse(is.na(x),
-                                                           x, 1))
+  manchas_urbanas <- project(manchas_urbanas, "epsg:4326")
+  
+  return(manchas_urbanas)
+})
 
-as.polygons(manchas_urbanas) %>% 
+plot(manchas_procesadas[[11]])
+
+
+
+as.polygons(manchas_procesadas) %>% 
   st_as_sf()
 
 
