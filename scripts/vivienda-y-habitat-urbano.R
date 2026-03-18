@@ -120,6 +120,28 @@ densidades$densidad_poblacional <- densidades$tampob/densidades$area_ha
 # 2010: 246,307
 # 2020: 319,754  
 
+# Prueba de tamaños poblacionales de ciudades parecidas a Cancún, sigue en proceso
+{library(tidyverse)
+
+iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv')
+
+colnames(iter)
+
+iter %>% 
+  filter(NOM_LOC == 'Total del Municipio' &
+           NOM_ENT %in% c( 'Jalisco', 'Quintana Roo', 'Michoacán de Ocampo') &
+           NOM_MUN %in% c ('Benito Juárez', 'Puerto Vallarta', 'Lázaro Cárdenas') ) %>% 
+  view()
+
+supermanzanas <- read_sf(implan, 
+                         Id (schema = 'base',
+                             table = 'supermanzanas'))
+censo_2020 <- tbl(src = implan,
+                  Id (schema = 'coati',
+                      table = 'censo_2020'))
+supermanzanas %>% 
+  colnames()
+}
 
 {df <- read.dbf(file = "../procesamiento-coati/datos/iter/",
                as.is = T) %>% 
