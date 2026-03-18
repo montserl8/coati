@@ -1329,7 +1329,7 @@ indigenas <- censo_2020 %>%
 ascendencia <- bind_rows (afros, indigenas) %>% 
   select(-value)
 
-### afrodescendientes de Cancún
+## afrodescendientes de Cancún
 afro_cun <-censo_2020 %>% 
   filter(ent == '23' & mun == '005') %>% 
   select(afrodes, factor) %>% 
@@ -1345,7 +1345,7 @@ afro_cun <-censo_2020 %>%
          ubicacion = 'Benito Juárez, Q.Roo') %>% 
   collect()
 
-### indígenas de Cancún
+## indígenas de Cancún
 ind_cun <- censo_2020 %>% 
   filter(ent == '23' & mun == '005') %>% 
   select(perte_indigena, factor) %>% 
@@ -1406,7 +1406,7 @@ lengua_edades <- censo_2020 %>%
   group_by(sexo, habla, grupo_edad) %>% 
   count(wt=factor) 
 
-## Lenguas habladas por la población de Benito Juárez:
+### Lenguas habladas por la población de Benito Juárez: ----
 inali <- read_csv('datos/clasificaciones/INALI.csv',
                   locale = locale(encoding = 'latin1'))
 
@@ -1437,28 +1437,23 @@ dbWriteTable(conn = implan,
              value = lenguas)
 
 
-# las personas que no hablan español y sólo hablan maya, si son muchas persoans espacializar depsués para ver dónde están.
+### Personas que no hablan español y sólo hablan maya -----
+# si son muchas persoans espacializar depsués para ver dónde están.
 # agarrar a las personas que hablan lengua indígena,  
 # de esas personas que hablan lengua indígena, agarrar las personas que no hablan español
 
-censo_2020 %>% 
+personas_que_solo_hablan_lengua_indigena <- censo_2020 %>% 
   filter(ent == '23', mun == '005') %>% 
-  mutate(habla_indigena = case_when(hlengua == '1' ~ 'Sí habla alguna lengua indígena',
-                                    hlengua == '3' ~ 'No habla lengua indígena',
-                                    T ~ 'No especificado')) %>% 
-  group_by(habla_indigena) %>% 
+  filter(hlengua == '1') %>% 
+  mutate(habla_español = case_when(hespanol == '1' ~ 'También habla español (Bilingüe)',
+                                   hespanol == '3' ~ 'No habla español, sólo la lengua indígena',
+                                   T ~ 'No especificado')) %>% 
+  group_by(habla_español) %>% 
   count(wt = factor) %>% 
+  ungroup() %>% 
+  mutate(porcentaje = (n/ sum(n))*100) %>% 
   collect() %>% 
   view()
 
-censo_2020 %>% 
-  filter(ent == '23', mun == '005') %>% 
-  mutate(no_habla_español = case_when(hespanol == '1' ~ 'Sí habla también español',
-                                      hespanol == '3' ~ 'No habla español',
-                                    T ~ 'No especificado')) %>% 
-  group_by(no_habla_español) %>% 
-  count(wt = factor) %>% 
-  collect() %>% 
-  view()
-  
-  
+
+

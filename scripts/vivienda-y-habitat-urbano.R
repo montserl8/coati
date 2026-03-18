@@ -94,6 +94,18 @@ crecimiento_viviendas <-tribble( ~anio, ~numero_viviendas,
                                  2005, 147914,
                                  2010, 246307,
                                  2020, 319754)
+# Densidad de vivienda en Cancún y en Puerto Vallarta ¿por qué puerto Vallarta? ps pq se me antojó ----
+
+df <- read_csv(file = "../procesamiento-coati/datos/iter/iter_nal2020.csv")
+names(df)
+
+df %>% 
+  filter(LOC == '0000') %>% 
+  filter(str_detect(string = NOM_MUN,
+                    pattern = 'Puerto Vallarta')|
+           NOM_MUN == 'Benito Juárez' &
+           ENTIDAD == '23')
+
 
 # Crecimiento porcentual de la vivienda en Cancún 
 crecimiento_viviendas <- crecimiento_viviendas %>% 
