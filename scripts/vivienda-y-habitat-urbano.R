@@ -13,8 +13,6 @@ library(units)
 # Vivienda y hábitat urbano ----
 
 # procesamiento del cálculo de la mancha urbana ------
-
-
 manchas <- lapply(manchas, function(mancha){ 
   
   mancha_1975 <- rast(mancha)
@@ -46,22 +44,22 @@ manchas_procesadas <- lapply(manchas, function(mancha){
   limite_municipal <- limite_municipal %>% 
     st_transform(crs(raster_manchas)) %>% 
     vect()
- # lo pasa a vect que es la clase para los vectores de terra
+  # lo pasa a vect que es la clase para los vectores de terra
   corte_a_bj <- crop(raster_manchas, limite_municipal)
   
- 
+  
   manchas_urbanas <- app(corte_a_bj, function(x) ifelse(x == 0, NA, x))
-
+  
   manchas_urbanas <- project(manchas_urbanas, "epsg:4326")
   
   #vectorizo
- mancha_vectorizada <- as.polygons(manchas_urbanas) %>% 
-   st_as_sf() %>% 
-   mutate(layer = mancha) %>% 
- group_by(layer) %>% 
-   summarise(area = sum(st_area(geometry)))
-
- return(mancha_vectorizada)
+  mancha_vectorizada <- as.polygons(manchas_urbanas) %>% 
+    st_as_sf() %>% 
+    mutate(layer = mancha) %>% 
+    group_by(layer) %>% 
+    summarise(area = sum(st_area(geometry)))
+  
+  return(mancha_vectorizada)
 })
 
 manchas_procesadas <- manchas_procesadas %>% 
@@ -69,7 +67,7 @@ manchas_procesadas <- manchas_procesadas %>%
   arrange(desc(layer))
 
 manchas_procesadas$anio <- str_extract(manchas_procesadas$layer,
-            '\\d+')
+                                       '\\d+')
 
 manchas_procesadas$anio <- as.integer(manchas_procesadas$anio)
 
@@ -77,18 +75,27 @@ ggplot() +
   geom_sf(data =manchas_procesadas,
           aes(fill = anio),
           color = 'transparent') 
-  scale_fill_viridis_c()
-  
+scale_fill_viridis_c()
+
 # ttm es para cambiar entre plot e interactivo
-  ttm()  
-  qtm(manchas_procesadas,
-      fill = 'layer')
-  
-  
-  # sacar el tamaño poblacional de cancún de 1975
-  #buscar tampob y viviendas habitadas particulares por año desde 1975,
-  # ponerlos en un df
-  
+ttm()  
+qtm(manchas_procesadas,
+    fill = 'layer')
+
+
+# sacar el tamaño poblacional de cancún de 1975
+#buscar tampob y viviendas habitadas particulares por año desde 1975,
+# ponerlos en un df
+
+tampobcun <-tribble(~entidad, ~anio, ~tampob,
+                    'Cancún', '1975', 15122,
+                    'Cancún', '1980', 37190,
+                    'Cancún', '1990', 311696,
+                    'Cancún', '1995', 419815,
+                    'Cancún', '2000', 572973,
+                    'Cancún', '2010', 661176,
+                    'Cancún', '2020', 911503)
+
 
 manchas_procesadas$area_ha <- set_units(manchas_procesadas$area, 'ha')
 
@@ -103,13 +110,18 @@ densidades <- manchas_procesadas %>%
 
 densidades$densidad_poblacional <- densidades$tampob/densidades$area_ha
 
-df %>% 
-  
 
-# viviendas totales en Benito Juárez en 1990: 41557 lo sacamos del ITER_23XLS90 ----
-# viviendas totales en Benito Juárez en 2020: 319754 lo sacamos de base.supermanzanas ---- 
+# Viviendas totales en BJ (fuente: ITER y base.supermanzanas ) -----
+# 1980: 8,429
+# 1990: 41,557 
+# 1995: 78832
+# 2000: 105,530
+# 2005: 147,914
+# 2010: 246,307
+# 2020: 319,754  
 
-df <- read.dbf(file = "../procesamiento-coati/datos/iter/iter_nal2005.dbf",
+
+{df <- read.dbf(file = "../procesamiento-coati/datos/iter/",
                as.is = T) %>% 
   as.tibble()
 
@@ -122,6 +134,7 @@ df_05 <- df %>%
            MUN == '005')
 
 as.integer(df_05[1,c('T_VIVHAB')])
+}
 
 # Asiganción de variables
 po <- 41557
@@ -133,13 +146,20 @@ t <- 2020-1990
 
 # Crecimiento de la vivienda en Cancún desde 1990 ---
 
-crecimiento_viviendas <-tribble( ~anio, ~numero_viviendas,
+viviendas <-tribble( ~anio, ~numero_viviendas,
+                                 1980, 8429,
                                  1990, 41557,
                                  1995, 78832,
                                  2000, 106891,
                                  2005, 147914,
                                  2010, 246307,
                                  2020, 319754)
+densidades <- densidades %>% 
+  inner_join(viviendas) 
+
+densidades$densidad_viviendas <- densidades$numero_viviendas/densidades$area_ha
+
+e
 # Densidad de vivienda en Cancún y en Puerto Vallarta ¿por qué puerto Vallarta? ps pq se me antojó ----
 
 df <- read_csv(file = "../procesamiento-coati/datos/iter/iter_nal2020.csv")
@@ -157,7 +177,7 @@ df %>%
 crecimiento_viviendas <- crecimiento_viviendas %>% 
   mutate(crecimiento = round(numero_viviendas - lag(numero_viviendas),1)/(numero_viviendas)* 100,
          etiqueta = paste(lag(anio), anio, sep = '-'))
-  
+
 
 dbWriteTable(implan,
              name = Id (schema = 'coati_tablas_finales',
