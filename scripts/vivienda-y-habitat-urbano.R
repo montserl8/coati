@@ -7,10 +7,14 @@ library(remotes)
 library(ggsankey)
 library(foreign)
 library(terra)
+library(tmap)
+library(units)
 
 # Vivienda y hábitat urbano ----
 
 # procesamiento del cálculo de la mancha urbana ------
+
+
 manchas <- lapply(manchas, function(mancha){ 
   
   mancha_1975 <- rast(mancha)
@@ -34,14 +38,15 @@ manchas <- list.files(path = "../procesamiento-coati/datos/mancha_urbana/",
                       recursive = T,
                       full.names = T)
 
-manchas_procesadas <- lapply(manchas, function(manchas){ 
+manchas_procesadas <- lapply(manchas, function(mancha){ 
   
-  raster_manchas <- rast(manchas)
+  print(mancha)
+  raster_manchas <- rast(mancha)
   
   limite_municipal <- limite_municipal %>% 
     st_transform(crs(raster_manchas)) %>% 
     vect()
- 
+ # lo pasa a vect que es la clase para los vectores de terra
   corte_a_bj <- crop(raster_manchas, limite_municipal)
   
  
@@ -49,16 +54,57 @@ manchas_procesadas <- lapply(manchas, function(manchas){
 
   manchas_urbanas <- project(manchas_urbanas, "epsg:4326")
   
-  return(manchas_urbanas)
+  #vectorizo
+ mancha_vectorizada <- as.polygons(manchas_urbanas) %>% 
+   st_as_sf() %>% 
+   mutate(layer = mancha) %>% 
+ group_by(layer) %>% 
+   summarise(area = sum(st_area(geometry)))
+
+ return(mancha_vectorizada)
 })
 
-plot(manchas_procesadas[[11]])
+manchas_procesadas <- manchas_procesadas %>% 
+  bind_rows() %>% 
+  arrange(desc(layer))
 
+manchas_procesadas$anio <- str_extract(manchas_procesadas$layer,
+            '\\d+')
 
+manchas_procesadas$anio <- as.integer(manchas_procesadas$anio)
 
-as.polygons(manchas_procesadas) %>% 
-  st_as_sf()
+ggplot() +
+  geom_sf(data =manchas_procesadas,
+          aes(fill = anio),
+          color = 'transparent') 
+  scale_fill_viridis_c()
+  
+# ttm es para cambiar entre plot e interactivo
+  ttm()  
+  qtm(manchas_procesadas,
+      fill = 'layer')
+  
+  
+  # sacar el tamaño poblacional de cancún de 1975
+  #buscar tampob y viviendas habitadas particulares por año desde 1975,
+  # ponerlos en un df
+  
 
+manchas_procesadas$area_ha <- set_units(manchas_procesadas$area, 'ha')
+
+tampobcun$anio <- as.integer(tampobcun$anio)
+
+densidades <- manchas_procesadas %>%
+  st_drop_geometry() %>% 
+  select(-layer,
+         -hectareas,
+         -area) %>% 
+  inner_join(tampobcun)
+
+densidades$densidad_poblacional <- densidades$tampob/densidades$area_ha
+
+df %>% 
+  
 
 # viviendas totales en Benito Juárez en 1990: 41557 lo sacamos del ITER_23XLS90 ----
 # viviendas totales en Benito Juárez en 2020: 319754 lo sacamos de base.supermanzanas ---- 
