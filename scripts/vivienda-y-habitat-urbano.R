@@ -103,15 +103,11 @@ tampobcun$anio <- as.integer(tampobcun$anio)
 
 densidades <- manchas_procesadas %>%
   st_drop_geometry() %>% 
-  select(-layer,
-         -hectareas,
-         -area) %>% 
   inner_join(tampobcun)
 
 densidades$densidad_poblacional <- densidades$tampob/densidades$area_ha
 
 
-# Viviendas totales en BJ (fuente: ITER y base.supermanzanas ) -----
 # 1980: 8,429
 # 1990: 41,557 
 # 1995: 78832
@@ -120,12 +116,20 @@ densidades$densidad_poblacional <- densidades$tampob/densidades$area_ha
 # 2010: 246,307
 # 2020: 319,754  
 
-# Prueba de tamaños poblacionales de ciudades parecidas a Cancún, sigue en proceso
-{library(tidyverse)
+# Sacar la densidad poblacional y de vivienda de Cancún y de otras ciudades del país y del mundo
 
+iter %>% 
+  filter(NOM_LOC == 'Total del Municipio' &
+         POBTOT > 911000) %>% 
+  select(POBTOT, NOM_MUN, NOM_ENT) %>% 
+  arrange(desc(POBTOT)) %>% 
+  view()
+# Prueba de tamaños poblacionales de ciudades parecidas a Cancún, sigue en proceso
+{
+  
 iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv')
 
-colnames(iter)
+  names(iter)
 
 iter %>% 
   filter(NOM_LOC == 'Total del Municipio' &
