@@ -13,19 +13,9 @@ library(units)
 # Vivienda y hábitat urbano ----
 
 # procesamiento del cálculo de la mancha urbana ------
-manchas <- lapply(manchas, function(mancha){ 
-  
-  mancha_1975 <- rast(mancha)
-  
-  
-  mancha_1975 <- mancha_1975 %>% 
-    crop(limite_municipal) 
-  
-  mancha_1975 <- app(mancha_1975, function(x) ifelse(x == 0,
-                                                     NA, x)) 
-  
-  mancha_1975 <- project(mancha_1975, 'epsg:4326')
-})
+supermanzanas <- read_sf(implan, 
+                         Id (schema = 'base',
+                             table = 'supermanzanas'))
 
 limite_municipal <- read_sf(implan,
                             Id (schema = 'base',
@@ -66,10 +56,16 @@ manchas_procesadas <- manchas_procesadas %>%
   bind_rows() %>% 
   arrange(desc(layer))
 
+#aquí extraemos los dígitos de la variable layer para hacer una nueva columna (anio) con los años por layer
 manchas_procesadas$anio <- str_extract(manchas_procesadas$layer,
                                        '\\d+')
-
+#aquí cambiamos el tipo de dato de la variable anio a entero as.integer()
 manchas_procesadas$anio <- as.integer(manchas_procesadas$anio)
+
+# aquí cambiamos el área de m2 a ha con la función set units()
+manchas_procesadas$area_ha <- set_units(manchas_procesadas$area, 'ha')
+
+view(manchas_procesadas)
 
 ggplot() +
   geom_sf(data =manchas_procesadas,
@@ -83,9 +79,10 @@ qtm(manchas_procesadas,
     fill = 'layer')
 
 
-# sacar el tamaño poblacional de cancún de 1975
-#buscar tampob y viviendas habitadas particulares por año desde 1975,
-# ponerlos en un df
+# TO DO: 
+# 1. sacar el tamaño poblacional de cancún de 1975
+# 2. buscar tampob y viviendas habitadas particulares por año desde 1975,
+# 3. ponerlos en un df
 
 tampobcun <-tribble(~entidad, ~anio, ~tampob,
                     'Cancún', '1975', 15122,
@@ -96,18 +93,18 @@ tampobcun <-tribble(~entidad, ~anio, ~tampob,
                     'Cancún', '2010', 661176,
                     'Cancún', '2020', 911503)
 
-
-manchas_procesadas$area_ha <- set_units(manchas_procesadas$area, 'ha')
-
 tampobcun$anio <- as.integer(tampobcun$anio)
 
 densidades <- manchas_procesadas %>%
   st_drop_geometry() %>% 
+  select(-layer,
+         -area) %>% 
   inner_join(tampobcun)
 
 densidades$densidad_poblacional <- densidades$tampob/densidades$area_ha
 
 
+# Viviendas totales en BJ (fuente: ITER y base.supermanzanas ) -----
 # 1980: 8,429
 # 1990: 41,557 
 # 1995: 78832
@@ -116,50 +113,42 @@ densidades$densidad_poblacional <- densidades$tampob/densidades$area_ha
 # 2010: 246,307
 # 2020: 319,754  
 
-# Sacar la densidad poblacional y de vivienda de Cancún y de otras ciudades del país y del mundo
-
-iter %>% 
-  filter(NOM_LOC == 'Total del Municipio' &
-         POBTOT > 911000) %>% 
-  select(POBTOT, NOM_MUN, NOM_ENT) %>% 
-  arrange(desc(POBTOT)) %>% 
-  view()
 # Prueba de tamaños poblacionales de ciudades parecidas a Cancún, sigue en proceso
-{
+{library(tidyverse)
   
-iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv')
-
-  names(iter)
-
-iter %>% 
-  filter(NOM_LOC == 'Total del Municipio' &
-           NOM_ENT %in% c( 'Jalisco', 'Quintana Roo', 'Michoacán de Ocampo') &
-           NOM_MUN %in% c ('Benito Juárez', 'Puerto Vallarta', 'Lázaro Cárdenas') ) %>% 
-  view()
-
-supermanzanas <- read_sf(implan, 
-                         Id (schema = 'base',
-                             table = 'supermanzanas'))
-censo_2020 <- tbl(src = implan,
-                  Id (schema = 'coati',
-                      table = 'censo_2020'))
-supermanzanas %>% 
-  colnames()
+  iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv')
+  
+  colnames(iter)
+  
+  iter %>% 
+    filter(NOM_LOC == 'Total del Municipio' &
+             NOM_ENT %in% c( 'Jalisco', 'Quintana Roo', 'Michoacán de Ocampo') &
+             NOM_MUN %in% c ('Benito Juárez', 'Puerto Vallarta', 'Lázaro Cárdenas') ) %>% 
+    view()
+  
+  supermanzanas <- read_sf(implan, 
+                           Id (schema = 'base',
+                               table = 'supermanzanas'))
+  censo_2020 <- tbl(src = implan,
+                    Id (schema = 'coati',
+                        table = 'censo_2020'))
+  supermanzanas %>% 
+    colnames()
 }
 
 {df <- read.dbf(file = "../procesamiento-coati/datos/iter/",
-               as.is = T) %>% 
-  as.tibble()
-
-colnames(df)
-
-df <- df [,1:130] 
-
-df_05 <- df %>% 
-  subset(ENTIDAD == '23' &
-           MUN == '005')
-
-as.integer(df_05[1,c('T_VIVHAB')])
+                as.is = T) %>% 
+    as.tibble()
+  
+  colnames(df)
+  
+  df <- df [,1:130] 
+  
+  df_05 <- df %>% 
+    subset(ENTIDAD == '23' &
+             MUN == '005')
+  
+  as.integer(df_05[1,c('T_VIVHAB')])
 }
 
 # Asiganción de variables
@@ -173,13 +162,13 @@ t <- 2020-1990
 # Crecimiento de la vivienda en Cancún desde 1990 ---
 
 viviendas <-tribble( ~anio, ~numero_viviendas,
-                                 1980, 8429,
-                                 1990, 41557,
-                                 1995, 78832,
-                                 2000, 106891,
-                                 2005, 147914,
-                                 2010, 246307,
-                                 2020, 319754)
+                     1980, 8429,
+                     1990, 41557,
+                     1995, 78832,
+                     2000, 106891,
+                     2005, 147914,
+                     2010, 246307,
+                     2020, 319754)
 densidades <- densidades %>% 
   inner_join(viviendas) 
 
@@ -486,3 +475,28 @@ ggplot ()+
            layer = Id (schema = 'coati_tablas_finales',
                        table = 'jb_viviendas_totales'))
 
+
+volumen <- rast('../procesamiento-coati/datos/volumen_construido/GHS_BUILT_V_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C10.tif')
+
+vol_limitebj <- volumen %>% 
+  crop(st_transform(limite_municipal,
+                    st_crs(volumen)))
+
+vol_limitebj <- vol_limitebj %>% 
+  project('epsg:4326')
+
+supermanzanas 
+
+# estadística zonal: por cada zona se puede aplicar una estadística
+suma_volumen <- zonal(vol_limitebj,
+                      vect(supermanzanas),
+                      fun = sum) %>%
+  as_tibble()
+
+supermanzanas$volumen <- suma_volumen$GHS_BUILT_V_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C10
+
+qtm(supermanzanas, fill = 'densidad_volumen')
+# ttm es un switch (entre plot y view)
+ttm()
+
+supermanzanas$densidad_volumen <- supermanzanas$pobtot/supermanzanas$volumen
