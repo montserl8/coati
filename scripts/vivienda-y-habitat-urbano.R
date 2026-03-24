@@ -9,10 +9,17 @@ library(foreign)
 library(terra)
 library(tmap)
 library(units)
+library(biscale)
+library(cowplot)
 
 # Vivienda y hábitat urbano ----
 
-# procesamiento del cálculo de la mancha urbana ------
+# procesamiento del cálculo de la mancha urbana -----
+
+agebs <- read_sf(implan, 
+                 Id (schema = 'base',
+                     table = 'agebs'))
+
 supermanzanas <- read_sf(implan, 
                          Id (schema = 'base',
                              table = 'supermanzanas'))
@@ -485,18 +492,113 @@ vol_limitebj <- volumen %>%
 vol_limitebj <- vol_limitebj %>% 
   project('epsg:4326')
 
-supermanzanas 
+supermanzanas
+agebs
 
 # estadística zonal: por cada zona se puede aplicar una estadística
 suma_volumen <- zonal(vol_limitebj,
-                      vect(supermanzanas),
+                      vect(agebs),
                       fun = sum) %>%
   as_tibble()
 
 supermanzanas$volumen <- suma_volumen$GHS_BUILT_V_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C10
+agebs$volumen <- suma_volumen$GHS_BUILT_V_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C10
 
 qtm(supermanzanas, fill = 'densidad_volumen')
 # ttm es un switch (entre plot y view)
 ttm()
 
 supermanzanas$densidad_volumen <- supermanzanas$pobtot/supermanzanas$volumen
+
+mapa_bivariado <- function(df,
+                           style,
+                           dim,
+                           pal){
+  
+  df_bivariado <- bi_class(df %>% 
+                             filter(!is.na(pobtot)),
+                           x = pobtot,
+                           y = volumen,
+                           style = style,
+                           dim = dim,
+                           keep_factors = F,
+                           dig_lab = 1,
+                           na_rm = T)
+  leyenda <- bi_legend(
+    pal = pal,
+    dim = dim,
+    xlab = "Población",
+    ylab = 'Volumen',
+    size = 8
+  )
+  
+  mapa_bivariado <- ggplot()+
+    geom_sf(data = df_bivariado,
+            mapping = aes(fill = bi_class),
+            color = "white",
+            size = 0.1,
+            show.legend = F)+
+    bi_scale_fill(pal = pal, dim = 2)+
+    labs(
+      title = "Población y volumen de vivienda",
+      subtitle = 'Benito Juárez, Q. Roo',
+      caption = 'Fuente: INEGI (Censo, 2020) y Global Human Settlement')+
+    bi_theme(
+    )
+  
+  # combine map with legend
+  finalPlot <- ggdraw() +
+    draw_plot(mapa_bivariado, 0, 0, 1, 1) +
+    draw_plot(leyenda, 0.2, .65, 0.2, 0.2)
+  
+  return(finalPlot)
+  
+}
+
+mapa_bivariado(height, 'jenks', 3, pal = 'PinkGrn')
+
+
+st_drivers(what = 'vector',
+           regex = 'parquet')
+
+altura <- read_sf(implan,
+                  Id (schema = 'base',
+                      table = 'altura_edificios'))
+
+height <- st_join(altura %>% 
+                    st_make_valid(),
+                  supermanzanas %>% 
+                    select(id_supermanzana,
+                           pobtot),
+                  join = st_intersects,
+                  left = F) %>% 
+  st_drop_geometry() %>% 
+  group_by(id_supermanzana) %>% 
+  summarise(height = sum(height))
+
+height <- height %>% 
+  left_join(supermanzanas) 
+
+height <- height %>% 
+  st_as_sf()
+
+names(height)
+
+
+# y cómo haces los cortes a mano?
+
+
+
+# viviendas con acceso a por lo menos 1 espacio público a menos de 300 m según la onu ------
+supermanzanas %>% 
+  select(id_supermanzana, 
+         vivtot) %>% 
+  st_contains(geom())
+
+deep <- read_sf(implan,
+                Id(schema = 'deep',
+                   table = 'espacios_publicos'))
+
+
+# Hacinamiento ----
+hac <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/')
