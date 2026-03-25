@@ -601,26 +601,44 @@ deep <- read_sf(implan,
 
 
 # Hacinamiento ----
-hac <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/Viviendas00.CSV')
+df_viviendas <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/Viviendas00.CSV')
 
-hacinamiento <- hac %>% 
+hacinamiento <- df_viviendas %>% 
   filter(ENT == '23' &
            MUN == '005') %>% 
-  mutate(haci = NUMPERS/CUADORM,
-         hacinamiento = ifelse(haci > 2.5, yes = 'Hacinamiento',
+  mutate(numero_personas_por_cuarto = NUMPERS/CUADORM,
+         hacinamiento = ifelse(numero_personas_por_cuarto > 2.5, yes = 'Hacinamiento',
                                no = 'No hacinamiento')) %>% 
   group_by(hacinamiento) %>% 
   count(wt = FACTOR) %>% 
   ungroup() %>% 
-  mutate(porcentaje = (n/sum(n))*100) 
+  mutate(porcentaje = (n/sum(n))*100,
+         porcentaje = round(porcentaje, 1)) 
 
 dbWriteTable(implan,
              Id(schema = 'coati_tablas_finales',
                 table = 'j_hacinamiento'),
              hacinamiento)
 
-# Materiales de construcción de vivienda ----
-# qué se considera  una vivienda digna?
+# Materiales de construcción de vivienda -----
+# cuando paredes techos o pisos sean nulos ~ 'no especificado'
+
+df_viviendas %>% 
+  filter(ENT == '23' & MUN == '005') %>%
+  mutate(rezago = case_when(PAREDES %in% c('1','2','3','4','5','6')|
+                              TECHOS  %in% c('01','02','03','04','06','07','09') |
+                              PISOS == '1' |
+                              SERSAN %in% c ('2', '3') ~  'Rezago habitacional',
+                            PAREDES %in% c('9', 'Nulo') &
+                              TECHOS %in% c('99','Nulo') &
+                              PISOS %in% c('9', 'Nulo') &
+                              SERSAN %in% c('9', 'Nulo') ~ 'No especificado',
+                            T ~ 'No rezago')) %>% 
+  group_by(rezago) %>% 
+  count(wt = FACTOR) %>% 
+  view()
 
 
- 
+# si las paredes, techos y pisos de una habitación cumplen con estas características, entonces es rezago habitacional, si no, no
+# si cualquiera tiene una ya es rezago
+
