@@ -601,4 +601,26 @@ deep <- read_sf(implan,
 
 
 # Hacinamiento ----
-hac <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/')
+hac <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/Viviendas00.CSV')
+
+hacinamiento <- hac %>% 
+  filter(ENT == '23' &
+           MUN == '005') %>% 
+  mutate(haci = NUMPERS/CUADORM,
+         hacinamiento = ifelse(haci > 2.5, yes = 'Hacinamiento',
+                               no = 'No hacinamiento')) %>% 
+  group_by(hacinamiento) %>% 
+  count(wt = FACTOR) %>% 
+  ungroup() %>% 
+  mutate(porcentaje = (n/sum(n))*100) 
+
+dbWriteTable(implan,
+             Id(schema = 'coati_tablas_finales',
+                table = 'j_hacinamiento'),
+             hacinamiento)
+
+# Materiales de construcción de vivienda ----
+# qué se considera  una vivienda digna?
+
+
+ 
