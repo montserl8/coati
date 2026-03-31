@@ -1,6 +1,6 @@
 
 df_vic1 <- read.csv('../procesamiento-coati/datos/envipe/TPer_Vic1.csv')
-df_tvivienda <- read_csv('../procesamiento-coati/datos/envipe/TVivienda.csv')
+
 df_vic2 <- read.csv('../procesamiento-coati/datos/envipe/TPer_Vic2.csv')
 
 names(df_vic2)
@@ -9,7 +9,39 @@ df_tvivienda %>%
   filter(AREAM == '41') %>% 
   view()
 
-# Percepción de conducta antisocial ------
+# Percepción sobre seguridad pública ----
+  
+## Seguridad en términos de delincuencia ------
+
+df_vic1 %>%
+  filter(AREAM == '41') %>%
+  select(contains('AP4_4_'), FAC_ELE_AM, SEXO) %>%
+  mutate(across(contains('AP4_4_'),
+                \(x) case_when(x == 1 ~ 'Se siente seguro(a)', 
+                               x == 2 ~ 'Se siente inseguro(a)',
+                               x == 3 ~ 'No aplica',
+                               x == 9 ~ 'No sabe / No responde'))) %>% 
+  mutate(sexo = ifelse(SEXO == 1, 'Hombre', 'Mujer')) %>% 
+  pivot_longer(contains('AP4_4_')) %>% 
+  mutate(percepcion_seguridad = recode(name,
+                                       'AP4_4_01' = 'En su casa',
+                                       'AP4_4_02' = 'En su trabajo',
+                                       'AP4_4_03' = 'En la calle',
+                                       'AP4_4_04' = 'En la escuela',
+                                       'AP4_4_05' = 'En el mercado',
+                                       'AP4_4_06' = 'En el centro comercial',
+                                       'AP4_4_07' = 'En el banco',
+                                       'AP4_4_08' = 'En el cajero automático localizado en la vía pública',
+                                       'AP4_4_09' = 'En el transporte público',
+                                       'AP4_4_10' = 'En el automóvil',
+                                       'AP4_4_11' = 'En la carretera',
+                                       'AP4_4_12' = 'En el parque o centro recreativo',
+                                       'AP4_4_A'  = 'Caminando solo(a) por la noche en los alrededores de su vivienda')) %>% 
+  group_by(percepcion_seguridad, value, sexo) %>% 
+  count(wt = FAC_ELE_AM) %>% 
+  view()
+
+## Conducta antisocial ------
 percepcion_antisocial <- df_vic1 %>% 
   filter(AREAM == '41') %>% 
   select(contains('AP4_5_'), 
@@ -44,40 +76,28 @@ percepcion_antisocial <- df_vic1 %>%
 
 percepcion_antisocial <- percepcion_antisocial %>% 
   ungroup()
-  
+
 percepcion_antisocial %>% 
-         mutate(actividad_antisocial = fct_reorder(actividad_antisocial, 
-                                                   n,
-                                                 .fun = \(x)sum(x[percepcion_antisocial$value == 'Sí'
-                                                 ]
-                                                 ))) %>% 
+  mutate(actividad_antisocial = fct_reorder(actividad_antisocial, 
+                                            n,
+                                            .fun = \(x)sum(x[percepcion_antisocial$value == 'Sí'
+                                            ]
+                                            ))) %>% 
   ggplot()+
   geom_bar(aes(actividad_antisocial, 
                n,
                fill = value),
            stat = 'identity')
-  
-  
-# Tipos de delitos ------
-df_vic1 %>% 
-  filter(AREAM == '41') %>% 
-  select(contains('AP4_4_'), FAC_ELE_AM) %>% 
-  mutate(across(contains('AP4_4_'),
-                \(x) ifelse(x == 1, 'Sí', 'No'))) %>% 
-  pivot_longer(!FAC_ELE_AM) %>% 
-  mutate(name = recode(name,
-                       AP4_4_01 = 'Robo de vehículo',
-                       AP4_4_02 = 'Robo de accesorios de vehículo',
-                       AP4_4_03 = 'Robo a casa habitación',
-                       AP4_4_04 = 'Robo a transeúnte',
-                       AP4_4_05 = 'Robo a negocio',
-                       AP4_4_06 = 'Fraude',
-                       AP4_4_07 = 'Extorsión',
-                       AP4_4_08 = 'Amenazas',
-                       AP4_4_09 = 'Lesiones',
-                       AP4_4_10 = 'Secuestro',
-                       AP4_4_11 = 'Delito sexual',
-                       AP4_4_12 = 'Otro delito'
-  )) %>% 
-  group_by(name, value) %>% 
-  count(wt = FAC_ELE_AM)
+# Victimización ------
+
+df_delitos_2015_2025 <- read_csv('../procesamiento-coati/datos/sesnsp/Municipal-Delitos-2015-2025_feb2026/Municipal-Delitos-2015-2025_feb2026.csv',
+                                 locale = locale(encoding = "latin1"))
+
+df_victimas_2026 <- read_csv('../procesamiento-coati/datos/sesnsp/victimas_municipal_2026.csv',
+                             locale = locale(encoding="latin1"))
+
+df_delitos_2015_2025 %>% 
+  filter(Clave_Ent == 23,
+         `Cve. Municipio` == 23005) %>% 
+  select(Año, `Tipo de delito`) %>% 
+  view()
