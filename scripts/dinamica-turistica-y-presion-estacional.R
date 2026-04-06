@@ -1,88 +1,37 @@
-# =============================================================================
-# SECCIÓN: DINÁMICA TURÍSTICA Y PRESIÓN ESTACIONAL
-# Municipio de referencia: Benito Juárez, Quintana Roo (ent = '23', mun = '005')
-# Fuentes: censo_2020 (INEGI), datatur (SECTUR/DATATUR mensual)
-# =============================================================================
-# Indicadores:
-#   1. IVUT  — Índice de Viviendas de Uso Temporal
-#   2. TDET  — Tasa de Dependencia Económica Turística
-#   3. IE    — Índice de Estacionalidad Mensual
-# =============================================================================
 
 library(tidyverse)
 censo_2020 <- tbl(src = implan,
                   Id (schema = 'coati',
                       table = 'censo_2020'))
-censo_2020 %>% head(3) %>% collect() %>% glimpse()
-# -----------------------------------------------------------------------------
-# INDICADOR 1: IVUT — Índice de Viviendas de Uso Temporal
-# -----------------------------------------------------------------------------
-# Concepto:
-#   Proporción de viviendas catalogadas como "de uso temporal" sobre el total
-#   de viviendas particulares. Funciona como proxy de la presión turística
-#   sobre el stock habitacional del municipio.
-#
-# Variable clave:
-#   clase_v: clase de vivienda particular
-#     1 = Habitada
-#     2 = No habitada (desocupada)
-#     3 = De uso temporal  <-- viviendas vacacionales / turísticas
-#     4 = Refugio
-#     5 = Local no construido para habitación
-#
-# Resultado: % de viviendas de uso temporal sobre el total
-# -----------------------------------------------------------------------------
 
-ivut <- censo_2020 %>%
+df_parque_habitacional <- read_csv('../procesamiento-coati/datos/parque_habitacional/parque_habitacional.csv')
+censo_2020 %>%
   filter(ent == '23', mun == '005') %>%
-  select(clase_v, factor) %>%
-  filter(!is.na(clase_v)) %>%
+  select(clavivp, factor) %>%
+  filter(!is.na(clavivp)) %>%
   mutate(
     tipo_vivienda = case_when(
-      clase_v == 1 ~ 'Habitada',
-      clase_v == 2 ~ 'No habitada',
-      clase_v == 3 ~ 'Uso temporal',
-      clase_v == 4 ~ 'Refugio',
-      clase_v == 5 ~ 'Local no construido',
+      clavivp == 1 ~ 'Habitada',
+      clavivp == 2 ~ 'No habitada',
+      clavivp == 3 ~ 'Uso temporal',
+      clavivp == 4 ~ 'Refugio',
+      clavivp == 5 ~ 'Local no construido',
       TRUE          ~ 'No especificado'
     )
   ) %>%
   group_by(tipo_vivienda) %>%
   count(wt = factor) %>%
   ungroup() %>%
-  mutate(porcentaje = n / sum(n) * 100) %>%
+  mutate(porcentaje = round((n / sum(n) * 100), 1)) %>%
   rename(total_viviendas = n) %>%
   collect()
 
-# Valor síntesis del indicador (solo viviendas de uso temporal)
-ivut_valor <- ivut %>%
-  filter(tipo_vivienda == 'Uso temporal') %>%
-  pull(porcentaje)
 
-cat("IVUT:", round(ivut_valor, 2), "% de viviendas son de uso temporal\n")
+# Cálculo de la dependencia económica turística 
+# aquí tengo que hacer un join con la clave de ocupación
+ocupacion <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/clasificaciones/OCUPACION.csv') 
 
-
-# -----------------------------------------------------------------------------
-# INDICADOR 2: TDET — Tasa de Dependencia Económica Turística
-# -----------------------------------------------------------------------------
-# Concepto:
-#   Proporción de la población ocupada que trabaja en sectores directamente
-#   vinculados al turismo (SCIAN 71–72): alojamiento, preparación de alimentos
-#   y bebidas, y servicios de entretenimiento. Mide cuánto depende la economía
-#   local del sector turístico.
-#
-# Variable clave:
-#   rama_act: rama de actividad económica (2 dígitos SCIAN)
-#     71 = Servicios de esparcimiento, culturales y deportivos
-#     72 = Servicios de alojamiento temporal y de preparación de alimentos
-#
-# Nota: rama_act puede venir como carácter o como entero según la versión
-#       del censo; ajustar el filtro según corresponda.
-#
-# Resultado: % de ocupados en turismo sobre total de ocupados
-# -----------------------------------------------------------------------------
-
-tdet <- censo_2020 %>%
+censo_2020 %>%
   filter(ent == '23', mun == '005') %>%
   select(rama_act, sit_tra, factor) %>%
   filter(!is.na(rama_act), sit_tra %in% c(1, 2, 3, 4)) %>%  # solo ocupados
@@ -107,25 +56,6 @@ tdet_valor <- tdet %>%
 cat("TDET:", round(tdet_valor, 2), "% de los ocupados trabajan en sectores turísticos\n")
 
 
-# -----------------------------------------------------------------------------
-# INDICADOR 3: IE — Índice de Estacionalidad Mensual
-# -----------------------------------------------------------------------------
-# Concepto:
-#   Mide la distribución relativa de la afluencia turística mes a mes,
-#   comparando cada mes contra el promedio mensual del año. Valores > 100
-#   indican temporada alta; valores < 100 indican temporada baja.
-#   Complementariamente, se calcula el Coeficiente de Variación (CV) como
-#   medida sintética de la presión estacional global.
-#
-# Fuente: datatur — tabla de afluencia mensual de SECTUR/DATATUR
-# Variables esperadas en datatur:
-#   anio     : año del registro
-#   mes      : número de mes (1–12)
-#   nom_mes  : nombre del mes
-#   afluencia: número de turistas o cuartos-noche ocupados en el mes
-#
-# Resultado: índice mensual (100 = promedio) + CV anual de la estacionalidad
-# -----------------------------------------------------------------------------
 
 ie <- datatur %>%
   filter(cve_mun == '23005', anio == 2023) %>%        # ajustar año según disponibilidad
@@ -177,3 +107,5 @@ resumen_indicadores <- tibble(
 )
 
 print(resumen_indicadores)
+
+
