@@ -29,5 +29,10 @@ manzanas <- tbl(siginplan,
 #  se mide sumando el valor de mercado de todos los bienes y servicios finales producidos en un país durante un periodo (generalmente un año o trimestre). La forma más común es el método del gasto: 
 
 
+# Dependencia económica 
+# (personas 0 a 12 años + viejitos / PEA)
 
+iter %>% 
+  filter(nom_ent == '23' & nom_mun == '005' & nom_loc == 'Total municipio') %>% 
+  summarise(idk = p_0a2 + p)
 
