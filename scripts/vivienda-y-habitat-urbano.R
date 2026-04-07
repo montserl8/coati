@@ -16,6 +16,11 @@ library(cowplot)
 
 # procesamiento del cálculo de la mancha urbana -----
 
+iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>% 
+  rename_with(tolower) %>% 
+  mutate(across(c(longitud:last_col()),
+                as.numeric))
+
 agebs <- read_sf(implan, 
                  Id (schema = 'base',
                      table = 'agebs'))
@@ -641,4 +646,45 @@ df_viviendas %>%
 
 # si las paredes, techos y pisos de una habitación cumplen con estas características, entonces es rezago habitacional, si no, no
 # si cualquiera tiene una ya es rezago
+
+
+sum(supermanzanas$vivpar_ut, na.rm = T)
+  # 291083
+# Viviendas de uso temporal ---------
+ut <- iter %>%
+  filter(entidad == '23' & mun == '005' & nom_loc == 'Total del Municipio') %>% 
+  st_drop_geometry() %>%
+  summarise(uso_temporal = sum(vivpar_ut, na.rm = T),
+            deshabitadas = sum(vivpar_des, na.rm = T),
+            habitadas = sum(tvivhab, na.rm = T)) %>% 
+  pivot_longer(c(uso_temporal, deshabitadas, habitadas), 
+               names_to = 'viviendas',
+               values_to = 'cantidad') %>% 
+  mutate(porcentajes = cantidad/sum(cantidad)*100) 
+
+dbWriteTable(implan,
+             Id(schema = 'coati_tablas_finales',
+                table = 'j_porcentaje_viviendas'),
+             value = ut)
+
+viviendas <- supermanzanas %>% 
+  select(vivpar_ut, vivpar_des, tvivhab, vivtot) %>% 
+  mutate(porcentaje_usotemporal = (vivpar_ut/vivtot)*100,
+         porcentaje_deshabitadas = (vivpar_des/vivtot)*100,
+         porcentaje_habitadas = (tvivhab/vivtot)*100,
+         across(contains('porcentaje'),
+                \(x) ifelse(is.na(x)| is.nan(x), 0, x)),
+         across(contains('porcentaje'),
+              \(x)round(x,1))) %>% 
+  select(-vivtot)
+
+st_write(obj = viviendas,
+         dsn = implan,
+         layer = Id (schema = 'coati_tablas_finales',
+                     table = 'j_porcentaje_viviendas_sf'))
+
+ggplot()+
+  geom_sf(data = viviendas,
+          aes(fill= porcentaje_usotemporal)) +
+  scale_fill_viridis_c(limits =c(0,100))
 
