@@ -10,6 +10,7 @@ library(tmap)
 library(units)
 library(biscale)
 library(cowplot)
+
 # Conexiones -----
 supermanzanas <- read_sf(implan, 
                          Id (schema = 'base',
@@ -27,15 +28,9 @@ iter_nal <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>%
   rename_with(tolower) %>% 
   mutate(across(c(longitud:last_col()),
                 as.numeric))
-# Funciones ----
 
 
-# PIB de la ciudad
-#  se mide sumando el valor de mercado de todos los bienes y servicios finales producidos en un país durante un periodo (generalmente un año o trimestre). La forma más común es el método del gasto: 
-
-
-# Dependencia económica 
-# (personas 0 a 12 años + viejitos / PEA)
+# Dependencia económica -----
 
 dependencia_economica <- iter_nal %>%
   filter(entidad == '23',
@@ -57,3 +52,4 @@ dbWriteTable(implan,
              dependencia_economica,
              overwrite = T)
 
+# Ingresos promedio de las personas 
