@@ -53,13 +53,12 @@ dbWriteTable(implan,
              overwrite = T)
 
 # Ingresos promedio de las personas por sexo
-  
+
 censo_2020 %>%
   filter(ent == '23', mun == '005') %>%
   filter(!is.na(ingtrmen), ingtrmen > 0) %>%
   select(sexo, ingtrmen, factor) %>%       
   collect() %>%                         
   mutate(sexo = ifelse(sexo == '1', 'Hombre', 'Mujer')) %>%
-  summarise(ingresos_promedio = mean(ingtrmen, w = factor),
-            personas = n(),
+  summarise(media = weighted.mean(ingtrmen, w = factor),
             .by = sexo)
