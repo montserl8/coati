@@ -12,9 +12,7 @@ library(units)
 library(biscale)
 library(cowplot)
 
-# Vivienda y hábitat urbano ----
-
-# procesamiento del cálculo de la mancha urbana -----
+# Conexiones y carga de datos ----
 
 iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>% 
   rename_with(tolower) %>% 
@@ -32,6 +30,11 @@ supermanzanas <- read_sf(implan,
 limite_municipal <- read_sf(implan,
                             Id (schema = 'base',
                                 table = 'limite_municipal'))
+
+df_viviendas <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/Viviendas00.CSV')
+
+
+# procesamiento del cálculo de la mancha urbana -----
 
 manchas <- list.files(path = "../procesamiento-coati/datos/mancha_urbana/",
                       pattern = ".tif$",
@@ -649,7 +652,7 @@ df_viviendas %>%
 
 
 sum(supermanzanas$vivpar_ut, na.rm = T)
-  # 291083
+# 291083
 # Viviendas de uso temporal ---------
 ut <- iter %>%
   filter(entidad == '23' & mun == '005' & nom_loc == 'Total del Municipio') %>% 
@@ -675,7 +678,7 @@ viviendas <- supermanzanas %>%
          across(contains('porcentaje'),
                 \(x) ifelse(is.na(x)| is.nan(x), 0, x)),
          across(contains('porcentaje'),
-              \(x)round(x,1))) %>% 
+                \(x)round(x,1))) %>% 
   select(-vivtot)
 
 st_write(obj = viviendas,
@@ -688,3 +691,96 @@ ggplot()+
           aes(fill= porcentaje_usotemporal)) +
   scale_fill_viridis_c(limits =c(0,100))
 
+
+# Densidad de vivienda ------
+
+
+# Viviendas habitadas por AGEB (tabla de resultados por AGEB)
+
+df_iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv')
+
+# Shapefile de AGEBs de Cancún
+ageb_shp <- st_read('../datos/sig/ageb/cancun_ageb_urbana.shp')
+
+densidad_vivienda <- df_iter %>%
+  filter(ENT == '23' & MUN == '005') %>%
+  select(CVEGEO, VIVPAR_HAB) %>%
+  left_join(ageb_shp %>%
+              mutate(area_ha = as.numeric(st_area(geometry)) / 10000) %>%
+              st_drop_geometry() %>%
+              select(CVEGEO, area_ha),
+            by = 'CVEGEO'
+  ) %>%
+  mutate(
+    viviendas_x_ha = VIVPAR_HAB / area_ha,
+    viviendas_x_ha = round(viviendas_x_ha, 2)
+  ) %>%
+  filter(!is.na(viviendas_x_ha) & area_ha > 0)
+
+# Rezago habitacional  ----
+df_viviendas <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/Viviendas00.CSV')
+
+df_personas <- read_csv(
+  '../procesamiento-coati/datos/cuestionarios_ampliados/2020/Personas00.CSV'
+)
+
+# Componentes del rezago habitacional (metodología CONAVI)
+# 1. Vivienda con materiales precarios en paredes o techos
+# 2. Hacinamiento (> 2.5 personas por cuarto)
+# 3. Sin agua entubada o drenaje
+
+rezago_componentes <- df_viviendas %>%
+  filter(ENT == '23' & MUN == '005') %>%
+  mutate(
+    precariedad_pared = MATPARED %in% c(1, 2, 3),   # materiales precarios
+    precariedad_techo = MATTECHO %in% c(1, 2, 3),
+    sin_agua          = DISPOCUA %in% c(3, 4),
+    sin_drenaje       = DRENAJE  == 3,
+    hacinamiento      = (NUMPERS / CUADORM) > 2.5,
+    rezago            = precariedad_pared | precariedad_techo |
+      sin_agua | sin_drenaje | hacinamiento
+  ) %>%
+  group_by(rezago) %>%
+  count(wt = FACTOR) %>%
+  ungroup() %>%
+  mutate(
+    porcentaje = round((n / sum(n)) * 100, 1)
+  )
+
+# Rezago por componente (para desglose) -----
+
+rezago_desglose <- df_viviendas %>%
+  filter(ENT == '23' & MUN == '005') %>%
+  mutate(precariedad_pared = MATPARED %in% c(1, 2, 3),
+         precariedad_techo = MATTECHO %in% c(1, 2, 3),
+         sin_agua = DISPOCUA %in% c(3, 4),
+         sin_drenaje = DRENAJE  == 3,
+         hacinamiento = (NUMPERS / CUADORM) > 2.5) %>%
+  summarise(
+    across(
+      c(precariedad_pared, precariedad_techo, sin_agua, sin_drenaje, hacinamiento),
+      ~ sum(. * FACTOR, na.rm = TRUE) / sum(FACTOR) * 100
+    )
+  ) %>%
+  pivot_longer(everything(), names_to = 'componente', values_to = 'porcentaje') %>%
+  mutate(porcentaje = round(porcentaje, 1))
+
+# Densidad habitacional ------
+# Igual que densidad de vivienda pero con toda vivienda (habitada + deshabitada)
+df_ageb <- read_csv('../datos/censo2020/ageb_urbana_23.csv')
+
+ageb_shp <- st_read('../datos/sig/ageb/cancun_ageb_urbana.shp') %>%
+  mutate(area_ha = as.numeric(st_area(geometry)) / 10000) %>%
+  st_drop_geometry() %>%
+  select(CVEGEO, area_ha)
+
+densidad_habitacional <- df_ageb %>%
+  filter(ENT == '23' & MUN == '005') %>%
+  select(CVEGEO, TVIVPARHAB, VIVPAR_DES, VIVPAR_HAB) %>%
+  left_join(ageb_shp, by = 'CVEGEO') %>%
+  mutate(
+    viv_total_x_ha   = round(TVIVPARHAB / area_ha, 2),
+    viv_hab_x_ha     = round(VIVPAR_HAB  / area_ha, 2),
+    tasa_desocupacion = round((VIVPAR_DES / TVIVPARHAB) * 100, 1)
+  ) %>%
+  filter(!is.na(viv_total_x_ha) & area_ha > 0)
