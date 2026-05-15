@@ -70,6 +70,9 @@ traslado_trabajo <- traslado_trabajo %>%
          destino = 'Trabajo') %>%
   collect()
 
+ggplot()+
+  ()
+
 ### Escuela ---
 dbGetQuery(implan,
            'select sum(factor) from coati.censo_2020
