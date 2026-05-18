@@ -30,8 +30,26 @@ iter_nal <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>%
                 as.numeric))
 
 # Población estudiando
-# Porcentaje de poblaci´+on económicamente activa
-# Población jubilada ----
+censo_2020 %>% 
+  filter(ent == '23' & mun=='005'& conact %in% c('50', '15'))  %>% 
+  count(wt = factor) %>% 
+  mutate(porcentaje = n/909366*100)
+
+# Porcentaje de población económicamente activa
+censo_2020 %>% 
+  filter(ent == '23' & mun=='005')%>% 
+  collect() %>% 
+  filter(str_detect(conact, '^1')) %>% 
+  count(wt = factor) %>% 
+  mutate(porcentaje = n/909366*100)
+
+# Población jubilada / porcentaje pensionada 
+censo_2020 %>% 
+  filter(ent == '23' & mun=='005'& conact=='40')  %>% 
+  count(wt = factor) %>% 
+  mutate(porcentaje = n/909366*100)
+
+# Población estudiando, trabajando y jubilada
 
 # Dependencia económica -----
 
@@ -123,12 +141,89 @@ ingreso_por_sexo <- censo_2020 %>%
 
 # Prestaciones laborales ----
 
-# Pensionados ----
+censo_2020 %>% 
+  filter(ent == '23' & mun =='005') %>% 
+  select(aguinaldo,
+         vacaciones,
+         servicio_medico,
+         utilidades,
+         incap_sueldo,
+         sar_afore,
+         credito_vivienda,
+         factor,
+         conact) %>% 
+  collect() %>%
+  filter(str_detect(conact, '^1')) %>% 
+  mutate(prestacion = ifelse(aguinaldo == '1' &
+                               vacaciones == '3'&
+                               servicio_medico == '5' &
+                               utilidades == '7' & 
+                               incap_sueldo == '1' &
+                               sar_afore == '3' &
+                               credito_vivienda == '5',
+                             'Sí', 
+                             'No')) %>% 
+  filter(prestacion == 'Sí') %>% 
+  count(wt = factor)
+
+censo_2020 %>% 
+  filter(ent == '23' & mun =='005') %>% 
+  count(wt = factor)
+
+# Porcentaje de personas a nivel nacional que tienen prestaciones
+prestaciones_nal <- (12061844/125515554)*100
+prestaciones_bj <- (153299/909366)*100
+
 # Horas trabajadas ----
+ent_mun <- iter_nal %>% 
+  select(nom_ent, nom_mun, entidad, mun) %>% 
+  mutate(entidad = str_pad(entidad,
+                           width = 2,
+                           side = 'left',
+                           pad = '0'),
+         mun = str_pad(mun,
+                       width = 3,
+                       side = 'left',
+                       pad = '0'))
+
+
+horas_trabajadas_mx <- censo_2020 %>%  
+  select(hortra, factor, ent) %>% 
+  collect() %>% 
+  filter(hortra >= 0 & hortra <= 999) %>% 
+  group_by(ent) %>% 
+  summarise(horas = sum(hortra*factor,
+                        na.rm = T) / sum(factor,
+                                         na.rm = T)) %>% 
+  left_join(ent_mun %>% 
+              select(entidad, nom_ent) %>% 
+              distinct(),
+            by = c ('ent' = 'entidad')) 
+
+horas_trabajadas_mx <- horas_trabajadas_mx %>% 
+  arrange(desc(horas))
+
+horas_trabajadas_qroo <- censo_2020 %>%  
+  filter(ent == '23') %>% 
+  select(hortra, factor, mun) %>% 
+  collect() %>% 
+  filter(hortra >= 0 & hortra <= 999) %>% 
+  group_by(mun) %>% 
+  summarise(horas = sum(hortra*factor,
+                        na.rm = T) / sum(factor,
+                                         na.rm = T)) %>% 
+  left_join(ent_mun %>% 
+              filter(entidad == '23') %>% 
+              select(mun, nom_mun) %>% 
+              distinct(),
+            by = c('mun'='mun')) %>% 
+  arrange(desc(horas)) %>% 
+  view()
+
 # Población económicamente activa ----
 # Empleo formal e informal ----
 # Ingresos promedio por (persona/ocupación/sexo/por edad) ------
-censo_2020 %>%
+ocupacion_ingreso_sexo_edad <- censo_2020 %>%
   filter(ent == '23', mun == '005') %>%
   collect() %>% 
   filter(!is.na(ingtrmen), ingtrmen > 0,

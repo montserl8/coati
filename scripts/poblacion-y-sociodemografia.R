@@ -24,6 +24,7 @@ porcentaje_tamano_pob <- porcentaje_tamano_pob %>%
 
 view(porcentaje_tamano_pob)
 
+
 # Población y sociodemográfica ----
 ## Tamaño poblacional de los municipios del estado de quintana roo 
 tam_pob <- read_sf(implan, 
