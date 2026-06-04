@@ -353,17 +353,31 @@ supermanzanas <- read_sf (implan,
                               table = 'supermanzanas'))
 
 discapacitados <- supermanzanas %>% 
-  select(pcon_disc, pobtot, geom, id_supermanzana) %>% 
+  select(pcon_disc, pobtot, geom, id_supermanzana,
+         pcdisc_mot, pcdisc_mot2, 
+         pcdisc_vis, pcdisc_leng, 
+         pcdisc_aud, pcdisc_men) %>% 
   rename(id_sm =id_supermanzana) %>% 
   mutate(personas_discapacitadas = as.integer(pcon_disc),
-         total_personas = as.integer(pobtot)) %>% 
+         total_personas = as.integer(pobtot),
+         discapacidad_visual = as.integer(pcdisc_vis),
+         discapacidad_auditiva = as.integer(pcdisc_aud),
+         discapacidad_fisica = as.integer(coalesce(pcdisc_mot, 0)) + as.integer(coalesce(pcdisc_mot2, 0)),
+         discapacidad_intelectual = as.integer(pcdisc_men)) %>%
   st_transform(4326) %>% 
   mutate(area_m2 = st_area(geom),
          area_ha = as.numeric(area_m2) / 10000,
-         porcentaje_discapacitados = personas_discapacitadas/na_if(total_personas, 0) * 100) %>% 
+         porcentaje_discapacitados = round(personas_discapacitadas/na_if(total_personas, 0) * 100,2),
+         dicapacidad_visual_pct = round(discapacidad_visual/na_if(total_personas, 0) * 100,2),
+         discapacidad_auditiva_pct = round(discapacidad_auditiva/na_if(total_personas, 0) * 100,2),
+         discapacidad_fisica_pct = round(discapacidad_fisica/na_if(total_personas, 0) * 100 ,2),
+         discapacidad_intelectual_pct = round(discapacidad_intelectual/na_if(total_personas, 0) * 100),2) %>% 
   filter(!is.na(porcentaje_discapacitados)) %>% 
   select(-pcon_disc,
-         -pobtot)
+         -pobtot, -pcdisc_mot, 
+         -pcdisc_mot2, 
+         -pcdisc_vis, -pcdisc_leng, 
+         -pcdisc_aud, -pcdisc_men) 
 
 st_write(obj = discapacitados, 
          dsn = implan, 
@@ -1455,6 +1469,15 @@ personas_que_solo_hablan_lengua_indigena <- censo_2020 %>%
   mutate(porcentaje = (n/ sum(n))*100) %>% 
   collect() %>% 
   view()
+
+# El 0.4 % de la población total del muncipio que habla sólo lengua indigena, se ubica en:
+
+supermanzanas %>% 
+  select(id_supermanzana,
+         p3hlinhe,
+         geom) %>% 
+  filter(!is.na(p3hlinhe)) 
+  
 
 
 
