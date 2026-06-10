@@ -57,15 +57,10 @@ dependencia_economica <- iter_nal %>%
   filter(entidad == '23',
          mun == '005',
          nom_loc == 'Total del Municipio') %>%
-  summarise(dependientes = p_0a2 + p_3a5 + p_6a11 + p_12a14 + p_60ymas,
-            independientes = pea,
-            dependencia = (dependientes) / independientes * 100) %>% 
-  pivot_longer(c(dependientes, independientes, dependencia),
-               names_to = 'situacion_economica',
-               values_to = 'cantidad') %>% 
-  mutate(porcentajes = ifelse(situacion_economica == 'dependencia', 
-                              NA,
-                              round (cantidad / sum(cantidad)*100, 1)))
+  summarise(dependientes = p_0a2 + p_3a5 + p_6a11 + p_12a14 + pob65_mas,
+            independientes = pob15_64,
+            dependencia = (dependientes) / independientes * 100,
+            independencia = 100-dependencia)
 
 dbWriteTable(implan,
              Id (schema = 'coati_tablas_finales',

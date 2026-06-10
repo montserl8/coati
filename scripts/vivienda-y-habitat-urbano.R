@@ -189,8 +189,6 @@ densidades <- densidades %>%
 
 densidades$densidad_viviendas <- densidades$numero_viviendas/densidades$area_ha
 
-e
-# Densidad de vivienda en Cancún y en Puerto Vallarta ¿por qué puerto Vallarta? ps pq se me antojó ----
 
 df <- read_csv(file = "../procesamiento-coati/datos/iter/iter_nal2020.csv")
 names(df)

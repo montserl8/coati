@@ -232,8 +232,7 @@ tampobcun <-tribble(~entidad, ~anio, ~tampob,
                     'Cancún', '1995', 419815,
                     'Cancún', '2000', 572973,
                     'Cancún', '2010', 661176,
-                    'Cancún', '2020', 911503,)
-plot(tampobcun)
+                    'Cancún', '2020', 911503)
 dbWriteTable(implan, 
              name = Id (schema = 'coati_tablas_finales',
                         table = ' aa_crecimiento_pob_cun'),
@@ -661,7 +660,7 @@ evolucion_grado_promedio <- bind_rows(grado_promedio_2000,
 
 evolucion_grado_promedio
 
-library(ggplot2)
+
 
 ggplot(evolucion_grado_promedio,
        aes(x = anio,
