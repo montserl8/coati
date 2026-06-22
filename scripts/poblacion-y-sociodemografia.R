@@ -31,6 +31,9 @@ tam_pob <- read_sf(implan,
                    Id (schema = 'coati',
                        table = 'tamano_poblacion'))
 
+tam_pob %>% 
+  view()
+
 # Cálculo del tamaño poblacional:
 #Lo hicimos desde qgis:1) unimos capas vectoriales (entidades y municipios), 
 #                      2) cambiamos los nombres de los campos (POB1 a poblacion_total y NOMGEO a entidad)
@@ -137,12 +140,14 @@ dbWriteTable(implan,
              value = cip,
              overwrite = T)
 
-p
-### Densidad poblacional por zona y comparación con AL y México -
-densidad_poblacion <- read_csv(file = 'datos/API_EN.POP.DNST_DS2_en_csv_v2_2718/API_EN.POP.DNST_DS2_en_csv_v2_2718.csv',
-                               skip = 4)
 
-densidad_region <- read_csv(file = 'datos/API_EN.POP.DNST_DS2_en_csv_v2_2718/Metadata_Country_API_EN.POP.DNST_DS2_en_csv_v2_2718.csv')
+### Densidad poblacional por zona y comparación con AL y México -
+densidad_poblacion <- read_csv(file = '/Users/Usuario/Documents/procesamiento-coati/datos/world_development_indicators/API_EN.POP.DNST_DS2_en_csv_v2_2718.csv',
+                               skip = 4)
+                               
+                               
+densidad_region <- read_csv(file = '/Users/Usuario/Documents/procesamiento-coati/datos/world_development_indicators/Metadata_Country_API_EN.POP.DNST_DS2_en_csv_v2_2718.csv')
+
 
 densidad_pob_AL <- densidad_poblacion %>% 
   left_join(densidad_region %>% 
@@ -177,6 +182,13 @@ densidades <- densidades %>%
                           levels = c('1990 - 2000',
                                      '2000 - 2010',
                                      '2010 - 2020')))
+# Crecimiento poblacional anual con el resto de LATAM
+densidades %>% 
+  group_by(periodo) %>% 
+  filter(entidad != 'Cancún') %>% 
+  summarise(prom = mean(tasa_de_crecimiento)) %>% 
+  view()
+
 dbWriteTable(conn = implan,
              name = Id (schema = 'coati_tablas_finales',
                         table = 'aa_tasa_crecimiento_AL'),
@@ -377,6 +389,11 @@ discapacitados <- supermanzanas %>%
          -pcdisc_mot2, 
          -pcdisc_vis, -pcdisc_leng, 
          -pcdisc_aud, -pcdisc_men) 
+
+discapacitados %>% 
+  st_drop_geometry() %>% 
+  select(-id_sm) %>% 
+  transmutate(pcent)
 
 st_write(obj = discapacitados, 
          dsn = implan, 

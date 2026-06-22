@@ -19,20 +19,45 @@ iter <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>%
   mutate(across(c(longitud:last_col()),
                 as.numeric))
 
-agebs <- read_sf(implan, 
-                 Id (schema = 'base',
-                     table = 'agebs'))
+agebs <- read_sf(implan, Id (schema = 'base',table = 'agebs'))
 
-supermanzanas <- read_sf(implan, 
-                         Id (schema = 'base',
-                             table = 'supermanzanas'))
+sm <- read_sf(implan, 
+              Id (schema = 'base',
+                  table = 'supermanzanas'))
 
 limite_municipal <- read_sf(implan,
                             Id (schema = 'base',
                                 table = 'limite_municipal'))
 
-df_viviendas <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/Viviendas00.CSV')
+df_viviendas <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/Viviendas00.CSV') %>% 
+  rename_with(tolower)
 
+df_entorno_urbano <- read_csv('../procesamiento-coati/datos/TI_MANZANA_EU_00.csv') %>% 
+  rename_with(tolower)
+
+# Funciones
+
+guardar_tabla <- function(datos, nombre_tabla, esquema = 'coati_tablas_finales') {
+  if (!exists("implan")) {
+    stop("La conexión 'implan' no está disponible en el entorno global.")
+  }
+  
+  comando <- substitute(
+    DBI::dbWriteTable(
+      conn = implan, 
+      name = DBI::Id(schema = x_esquema, table = x_tabla),
+      value = x_datos,
+      overwrite = TRUE
+    ),
+    list(
+      x_esquema = esquema,
+      x_tabla = nombre_tabla,
+      x_datos = quote(datos) 
+    )
+  )
+  
+  eval(comando)
+}
 
 # procesamiento del cálculo de la mancha urbana -----
 
@@ -189,6 +214,10 @@ densidades <- densidades %>%
 
 densidades$densidad_viviendas <- densidades$numero_viviendas/densidades$area_ha
 
+dbWriteTable(implan,
+             Id(schema = 'coati_tablas_finales',
+                table = 'j_densidades'),
+             densidades)
 
 df <- read_csv(file = "../procesamiento-coati/datos/iter/iter_nal2020.csv")
 names(df)
@@ -304,8 +333,7 @@ viv_energia <- supermanzanas %>%
 st_write(obj = viv_energia,
          dsn = implan,
          layer = Id(schema = 'coati_tablas_finales',
-                    table = 'jf_viviendas_energia_ubi'),
-         delete_layer = T)
+                    table = 'jf_viviendas_energia_ubi'))
 
 dbSendQuery(implan, 'drop table coati_tablas_finales.jf_viviendas_energia_ubi')
 View(viv_energia)
@@ -326,8 +354,17 @@ viv_agua <- supermanzanas %>%
 st_write(obj = viv_agua,
          dsn = implan,
          layer = Id (schema = 'coati_tablas_finales',
-                     table = 'jg_viviendas_agua_ubi'),
-         delete_layer = T)
+                     table = 'jg_viviendas_agua_ubi'))
+viv_agua %>% 
+  st_drop_geometry() %>% 
+  select(-id_supermanzana,
+         -porcentaje_con_el_servicio) %>% 
+  summarise(viv_con_awa = sum(viviendas_con_el_servicio, na.rm = T))
+
+iter %>% 
+  filter(entidad == '23' & mun == '005') %>% 
+  select(tvivparhab) %>% 
+  summarise(viv_tot_hab_par = sum(tvivparhab, na.rm = T))
 
 ### Viviendas con drenaje -----
 #geom
@@ -345,8 +382,7 @@ viv_drenaje <- supermanzanas %>%
 st_write(obj = viv_drenaje,
          dsn = implan,
          layer = Id (schema = 'coati_tablas_finales',
-                     table = 'jh_viviendas_drenaje_ubi'),
-         delete_layer = T)
+                     table = 'jh_viviendas_drenaje_ubi'))
 
 ## juntamos los servicios (agua, energía y drenaje a pesar de que ya había un valor así pipipi)
 
@@ -445,8 +481,22 @@ st_write(obj = viv_desocupadas,
                      table = 'jk_viviendas_desocupadas'))
 
 ## Total hogares  -----  
+# cruzar los hogares con jefes de familia por sexo
 
-total_hogares <- supermanzanas %>% 
+hogares <- sm %>% 
+  st_drop_geometry() %>% 
+  select(tothog, hogjef_f, hogjef_m) %>% 
+  summarise(hogares_total = sum(tothog, na.rm = T),
+            persona_ref_mujer = sum(hogjef_f, na.rm = T),
+            persona_ref_hombre = sum(hogjef_m, na.rm = T)) %>% 
+  mutate(relacion_hombre_mujer = persona_ref_mujer/persona_ref_hombre *10)
+
+dbWriteTable(implan,
+             Id (schema = 'coati_tablas_finales',
+                 name = 'jl_hogares'),
+             value = hogares)
+
+total_hogares <- sm %>% 
   rename(hogares_totales = tothog) %>% 
   select(hogares_totales) %>% 
   summarise(total_hogares =(sum(hogares_totales,
@@ -626,10 +676,16 @@ dbWriteTable(implan,
                 table = 'j_hacinamiento'),
              hacinamiento)
 
+hacinamiento_geom <- sm %>% 
+  select(pro_ocup_c, id_supermanzana) %>% 
+  mutate(hacinamiento = ifelse(pro_ocup_c >= 2.5, 'Hacinamiento', 'Sin hacinamiento')) %>% 
+  view()
+
+st_write()
 # Materiales de construcción de vivienda -----
 # cuando paredes techos o pisos sean nulos ~ 'no especificado'
 
-df_viviendas %>% 
+rezago <- df_viviendas %>% 
   filter(ENT == '23' & MUN == '005') %>%
   mutate(rezago = case_when(PAREDES %in% c('1','2','3','4','5','6')|
                               TECHOS  %in% c('01','02','03','04','06','07','09') |
@@ -641,10 +697,12 @@ df_viviendas %>%
                               SERSAN %in% c('9', 'Nulo') ~ 'No especificado',
                             T ~ 'No rezago')) %>% 
   group_by(rezago) %>% 
-  count(wt = FACTOR) %>% 
-  view()
+  count(wt = FACTOR) 
 
-
+dbWriteTable(implan, 
+             name = Id(schema = 'coati_tablas_finales',
+                       table = 'ja_rezago_habitacional'),
+             rezago)
 # si las paredes, techos y pisos de una habitación cumplen con estas características, entonces es rezago habitacional, si no, no
 # si cualquiera tiene una ya es rezago
 
@@ -691,7 +749,15 @@ ggplot()+
 
 
 # Densidad de vivienda ------
+densidad_viviendas <- read_sf(implan,
+                              Id(schema = 'coati_tablas_finales',
+                                 table = 'j_densidad_viviendas'))
 
+densidad_viviendas %>% 
+  st_drop_geometry() %>% 
+  select(-id_supermanzana) %>% 
+  summarise(densidad = mean(densidad_vivtot, na.rm = T)) %>% 
+  view()
 
 # Viviendas habitadas por AGEB (tabla de resultados por AGEB)
 
@@ -730,7 +796,7 @@ df_personas <- read_csv(
 rezago_componentes <- df_viviendas %>%
   filter(ENT == '23' & MUN == '005') %>%
   mutate(
-    precariedad_pared = MATPARED %in% c(1, 2, 3),   # materiales precarios
+    precariedad_pared = PAREDES %in% c('1', '2', '3', '4'),   # materiales precarios
     precariedad_techo = MATTECHO %in% c(1, 2, 3),
     sin_agua          = DISPOCUA %in% c(3, 4),
     sin_drenaje       = DRENAJE  == 3,
@@ -782,3 +848,15 @@ densidad_habitacional <- df_ageb %>%
     tasa_desocupacion = round((VIVPAR_DES / TVIVPARHAB) * 100, 1)
   ) %>%
   filter(!is.na(viv_total_x_ha) & area_ha > 0)
+
+# Accesibilidad peatonal a la red de espacios públicos -----
+df_entorno_urbano %>% 
+  filter(ent == '23' & mun == '005') %>% 
+  select(banqueta_c)
+
+dotacion_ep_por_hab <- dbGetQuery(implan, 'select sum(area_ha*10000) as area_m, clasificacion_escala_servicio
+from deep.espacios_publicos
+group by clasificacion_escala_servicio')
+
+dotacion_ep_por_hab %>% 
+  mutate(dotacion_por_hab = (area_m)/911503)
