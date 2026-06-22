@@ -29,6 +29,10 @@ iter_nal <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>%
   mutate(across(c(longitud:last_col()),
                 as.numeric))
 
+codigos_censo_economico <- read_csv('../procesamiento-coati/datos/censos/economico/catalogos/tc_codigo_actividad.csv')
+
+censo_economico <- read_csv('../procesamiento-coati/datos/censos/economico/conjunto_de_datos/tr_ce_qroo_2024.csv')
+
 # Población estudiando
 censo_2020 %>% 
   filter(ent == '23' & mun=='005'& conact %in% c('50', '15'))  %>% 
@@ -245,6 +249,22 @@ ocupacion_ingreso_sexo_edad <- censo_2020 %>%
   summarise(ingreso_prom = weighted.mean(ingtrmen, w = factor)) %>% 
   view()
 
+# Número de PYMEs
+codigos_censo_economico <- read_csv('../procesamiento-coati/datos/censos/economico/catalogos/tc_codigo_actividad.csv', locale = locale(encoding = 'UTF-8'))
+
+censo_economico <- read_csv('../procesamiento-coati/datos/censos/economico/conjunto_de_datos/tr_ce_qroo_2024.csv',
+                            locale = locale(encoding = "utf8"))
+
+censo_economico %>% 
+  filter(E04 == '005') %>% 
+  group_by(ID_ESTRATO) %>% 
+  mutate(tamano = case_when(ID_ESTRATO == '1')'Micro')
+  summarise(num_pymes = sum(UE))
+  filter(str_detect(CODIGO,
+                    pattern = '^\\d{1,3}$')) %>% 
+  select(UE, CODIGO, SECTOR) %>% 
+  cross_join(codigos_censo_economico) %>% 
+view()
 
 
 
