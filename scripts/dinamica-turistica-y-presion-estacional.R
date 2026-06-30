@@ -1,5 +1,9 @@
-
 library(tidyverse)
+library(sf)
+library(gghighlight)
+library(remotes)
+library(ggsankey)
+
 censo_2020 <- tbl(src = implan,
                   Id (schema = 'coati',
                       table = 'censo_2020'))
@@ -26,7 +30,17 @@ censo_2020 %>%
   rename(total_viviendas = n) %>%
   collect()
 
+# Afluencia turística -----
+afluencia <- read_csv('../procesamiento-coati/datos/datatur/afluencia.csv',
+                      locale = locale(encoding = 'latin1' ))
 
+dbWriteTable(implan,
+             name = Id(schema = 'coati_tablas_finales',
+                       table = 't_afluencia'),
+             value = afluencia,
+             overwrite = T)
+
+# Procedencia de turistas a través del tiempo
 # Cálculo de la dependencia económica turística 
 # aquí tengo que hacer un join con la clave de ocupación
 ocupacion <- read_csv('../procesamiento-coati/datos/cuestionarios_ampliados/2020/clasificaciones/OCUPACION.csv') 
@@ -87,9 +101,9 @@ cat("  (CV > 50%: alta estacionalidad | CV 25-50%: moderada | CV < 25%: baja)\n"
 print(ie %>% select(nom_mes, afluencia, indice_estacionalidad, temporada))
 
 
-# -----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 # TABLA RESUMEN DE LOS 3 INDICADORES
-# -----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 
 resumen_indicadores <- tibble(
   indicador   = c('IVUT', 'TDET', 'IE (CV)'),

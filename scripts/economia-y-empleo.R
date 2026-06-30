@@ -221,6 +221,16 @@ horas_trabajadas_qroo <- censo_2020 %>%
 
 # Población económicamente activa ----
 # Empleo formal e informal ----
+enoe_sdem <- read_csv('../procesamiento-coati/datos/enoe/ENOE_SDEMT126.csv')%>% 
+  rename_with(tolower)
+
+enoe_sdem %>% 
+  filter(cve_ent == '23' & cve_mun == '005') %>% 
+  mutate(formalidad = case_when(emp_ppal == '1' ~ 'Empleo informal',
+                                emp_ppal == '2' ~ 'Empleo formal')) %>% 
+  group_by(formalidad) %>% 
+  summarise(n = sum(fact, na.rm = T))
+
 # Ingresos promedio por (persona/ocupación/sexo/por edad) ------
 ocupacion_ingreso_sexo_edad <- censo_2020 %>%
   filter(ent == '23', mun == '005') %>%
@@ -249,7 +259,7 @@ ocupacion_ingreso_sexo_edad <- censo_2020 %>%
   summarise(ingreso_prom = weighted.mean(ingtrmen, w = factor)) %>% 
   view()
 
-# Número de PYMEs
+# Número de PYMEs ------
 codigos_censo_economico <- read_csv('../procesamiento-coati/datos/censos/economico/catalogos/tc_codigo_actividad.csv', locale = locale(encoding = 'UTF-8'))
 
 censo_economico <- read_csv('../procesamiento-coati/datos/censos/economico/conjunto_de_datos/tr_ce_qroo_2024.csv',
@@ -258,13 +268,16 @@ censo_economico <- read_csv('../procesamiento-coati/datos/censos/economico/conju
 censo_economico %>% 
   filter(E04 == '005') %>% 
   group_by(ID_ESTRATO) %>% 
-  mutate(tamano = case_when(ID_ESTRATO == '1')'Micro')
-  summarise(num_pymes = sum(UE))
   filter(str_detect(CODIGO,
                     pattern = '^\\d{1,3}$')) %>% 
   select(UE, CODIGO, SECTOR) %>% 
   cross_join(codigos_censo_economico) %>% 
-view()
+  view()
 
+mutate(tamano = case_when(ID_ESTRATO == '1')'Micro')
+summarise(num_pymes = sum(UE))
+
+
+# Temporalidad del empleo por estacionalidad turística ------
 
 

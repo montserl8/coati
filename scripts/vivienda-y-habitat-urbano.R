@@ -683,6 +683,49 @@ hacinamiento_geom <- sm %>%
 
 st_write()
 # Materiales de construcción de vivienda -----
+material <- df_viviendas %>% 
+  filter(ent == '23' & mun == '005') %>% 
+  select(paredes, techos, pisos, factor) %>% 
+  mutate(across(c(paredes, techos, pisos), as.character)) %>%
+  pivot_longer(cols = c(paredes, techos, pisos), 
+               names_to = 'estructura', 
+               values_to = 'codigo') %>% 
+  mutate(estructura = case_when(estructura == "paredes" ~ "Paredes",
+                                estructura == "techos"  ~ "Techos",
+                                estructura == "pisos"   ~ "Pisos")) %>% 
+  mutate(material = case_when(estructura == 'Paredes' & codigo == '1' ~ 'Material de desecho',
+                              estructura == 'Paredes' & codigo == '2' ~ 'Lámina de cartón',
+                              estructura == 'Paredes' & codigo == '3' ~ 'Lámina de asbesto o metálica',
+                              estructura == 'Paredes' & codigo == '4' ~ 'Carrizo, bambú o palma',
+                              estructura == 'Paredes' & codigo == '5' ~ 'Embarro o bajareque',
+                              estructura == 'Paredes' & codigo == '6' ~ 'Madera',
+                              estructura == 'Paredes' & codigo == '7' ~ 'Adobe',
+                              estructura == 'Paredes' & codigo == '8' ~ 'Tabique, ladrillo, block, piedra, cantera, cemento o concreto',
+                              estructura == 'Techos' & codigo == '01' ~ 'Material de desecho',
+                              estructura == 'Techos' & codigo == '02' ~ 'Lámina de cartón',
+                              estructura == 'Techos' & codigo == '03' ~ 'Lámina metálica',
+                              estructura == 'Techos' & codigo == '04' ~ 'Lámina de asbesto',
+                              estructura == 'Techos' & codigo == '05' ~ 'Lámina de fibrocemento',
+                              estructura == 'Techos' & codigo == '06' ~ 'Palma o paja',
+                              estructura == 'Techos' & codigo == '07' ~ 'Madera o tejamanil',
+                              estructura == 'Techos' & codigo == '08' ~ 'Terrado con viguería',
+                              estructura == 'Techos' & codigo == '09' ~ 'Teja',
+                              estructura == 'Techos' & codigo == '10' ~ 'Losa de concreto o viguetas con bovedilla',
+                              estructura == 'Pisos' & codigo == '1' ~ 'Tierra',
+                              estructura == 'Pisos' & codigo == '2' ~ 'Cemento o firme',
+                              estructura == 'Pisos' & codigo == '3' ~ 'Madera, mosaico u otro recubrimiento',
+                              T ~ 'No especificado')) %>% 
+  group_by(estructura, material) %>% 
+  count(wt = factor) %>% 
+  ungroup() %>% 
+  group_by(estructura) %>% 
+  mutate(pcent = n / sum(n) * 100)
+
+dbWriteTable(implan, 
+             name = Id(schema = 'coati_tablas_finales',
+                       table = 'j_material'),
+             material)
+
 # cuando paredes techos o pisos sean nulos ~ 'no especificado'
 
 rezago <- df_viviendas %>% 
