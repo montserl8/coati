@@ -4,6 +4,8 @@ library(sf)
 library(gghighlight)
 library(remotes)
 library(ggsankey)
+library(dplyr)
+library(foreign)
 
 supermanzanas <- read_sf(implan, 
                          Id (schema = 'base',
@@ -33,6 +35,18 @@ tam_pob <- read_sf(implan,
 
 tam_pob %>% 
   view()
+# Tamaño poblacional intercenssal 2025
+
+intercensal <- read_csv(file = 'datos/intercensal/personas00.csv',
+                        locale = locale(encoding = "latin1"))
+
+intercensal <- intercensal %>% 
+  rename_with(tolower) %>% 
+  filter(cve_ent == '23' & cve_mun == '005') 
+
+
+  count(wt = factor) %>% 
+  summarise(tampob = sum(n, na.rm = T))
 
 # Cálculo del tamaño poblacional:
 #Lo hicimos desde qgis:1) unimos capas vectoriales (entidades y municipios), 
@@ -60,12 +74,10 @@ ppl <- censo_2020 %>%
          mun == '005') %>%  
   mutate(sexo = case_when( sexo == '1' ~ 'Hombres',
                            sexo == '3' ~ 'Mujeres',
-                           TRUE ~ 'No especificado'))
-class(ppl)
+                           T ~ 'No especificado'))
 
-ppl_df <- ppl %>% collect()
-view(ppl_df)
-ppl_df <- ppl_df %>%
+ppl_df <- ppl %>%
+  collect() %>% 
   mutate(grupo_edad = cut(edad,
                           breaks = c(0, 4, 9, 14, 19, 24, 29, 34, 39, 44,
                                      49, 54, 59, 64, 69, 74, 79, 150),
@@ -73,15 +85,37 @@ ppl_df <- ppl_df %>%
                                      "25-29", "30-34", "35-39", "40-44", "45-49",
                                      "50-54", "55-59", "60-64", "65-69", "70-74",
                                      "75-79", "80+"),
-                          right = TRUE,
-                          include.lowest = TRUE)) %>%
+                          right = T,
+                          include.lowest = T)) %>%
   filter(!is.na(grupo_edad), sexo %in% c("Hombres", "Mujeres")) %>%
   group_by(grupo_edad, sexo) %>% 
-  summarise(poblacion = sum(factor, na.rm = TRUE))
+  summarise(poblacion = sum(factor, na.rm = T))
 
-view(ppl_df)
 
-ppl_plt <- ppl_df %>%
+ppl %>% 
+  summarise(edad_mediana = median(edad, na.rm = T))
+
+
+ppl_2 <- ppl %>% 
+  collect() %>% 
+  mutate(grupo_edad = cut(edad,
+                          seq(min(edad),
+                              max(edad),
+                              4,
+                              include.lowest=T)))  %>%
+  filter(!is.na(grupo_edad), sexo %in% c("Hombres", "Mujeres")) %>%
+  group_by(grupo_edad, sexo) %>% 
+  summarise(poblacion = sum(factor, na.rm = T)) 
+
+ppl_2 %>% 
+  ungroup() %>% 
+  select(-grupo_edad) %>% 
+  group_by(sexo) %>% 
+  summarise(pobtot= sum (poblacion)) %>% 
+  mutate(pcent =  (pobtot/sum(pobtot))*100,
+         relacion = ) 
+
+ppl_plt <- ppl_2 %>%
   mutate(poblacion_plot = if_else (sexo == "Hombres", -poblacion, poblacion)) %>%
   ggplot(aes(x = grupo_edad, y = poblacion_plot, fill = sexo)) +
   geom_col(width = 0.9) +
@@ -102,11 +136,53 @@ dbWriteTable(conn = implan,
                         table = 'a_piramide_poblacional'),
              value = ppl_df)
 
+clas_cips <- tribble(~ENT, ~MUN, ~CIP,
+                     '03', '009', 'Loreto',
+                     '23', '005', 'Cancún',
+                     '03', '008', 'Los Cabos',
+                     '12', '038', 'Ixtapa-Zihuatanejo',
+                     '20', '413', 'Bahías de Huatulco')
+
+iters <- list.files(path = '../procesamiento-coati/datos/iter',
+                    pattern = '.dbf',
+                    full.names = T)
+
+iters <- lapply(iters, function(x){
+  anio = str_extract(x, '[:digit:][:digit:][:digit:][:digit:]')
+  df = read.dbf(x,
+                as.is = T) #si no, mete los strings como factor
+  df$anio = anio
+  colnames(df)[10] = 'pobtot'
+  return(df)
+})
+
+iters <- iters %>% 
+  bind_rows() %>% 
+  inner_join(clas_cips, 
+             by = c('ENTIDAD' = 'ENT',
+                    'MUN' = 'MUN')) %>% 
+  filter(LOC == '0000') %>% 
+  select(CIP, anio, pobtot) %>% 
+  arrange(CIP, anio)
 
 
-# 
+iter_poblaciones20 <- read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>% 
+  inner_join(clas_cips, by = c('ENTIDAD' = 'ENT',
+                               MUN = 'MUN')) %>% 
+  filter(LOC == '0000') %>% 
+  mutate(anio = '2020') %>% 
+  select(POBTOT, anio, CIP) 
 
-cip <- read_csv(file = 'datos/clasificaciones/cip.csv',
+iter_poblacion
+
+read_csv('../procesamiento-coati/datos/iter/iter_nal2020.csv') %>% 
+  inner_join(clas_cips, by = c('ENTIDAD' = 'ENT',
+                               MUN = 'MUN')) %>% 
+  filter(LOC == '0000') %>% 
+  mutate(anio = '2020') %>% 
+  select(POBTOT, anio, CIP) 
+
+cip <- read_csv(file = 'datos/clasificaciones/cips.csv',
                 col_names = TRUE)
 cip <- cip %>% 
   mutate(tam_pob = as.integer(tampob)) %>% 
@@ -117,17 +193,52 @@ cip <- cip %>%
   ungroup() %>% 
   group_by(cip_nombre) %>% 
   arrange(cip_nombre) %>% 
-  mutate(tasa_crecimiento = round(tam_pob - lag(tam_pob),1)/(tam_pob)* 100 ) %>% 
+  mutate(tasa_crecimiento = round(tam_pob - lag(tam_pob),1)/(tam_pob)* 100,
+         crecimiento = round((tam_pob - lag(tam_pob)), 1) / lag(tam_pob) * 100)  
+view(cip)
+
+# cip <- cip %>% 
+# filter(anio == 1980) %>% 
+# select(cip_nombre, anio, tam_pob) %>% 
+# rename(CIP = cip_nombre,
+#        POBTOT = tampob) %>% 
+# mutate(anio = as.character(anio),
+#        POBTOT = as.integer(POBTOT)) %>% 
+# bind_rows(iter_poblaciones20,
+#           iters %>% 
+#             rename(POBTOT = pobtot) %>% 
+#             mutate(POBTOT = as.numeric(POBTOT))) %>% 
+# arrange(CIP, desc(anio)) %>% 
+# rename_with(tolower)
+
+
+cips_70 <- tribble(~estado, ~municipio, ~cip_nombre, ~anio, ~tam_pob,
+                   'Quintana Roo', 'Benito Juárez', 'Cancún', 1970, 117,
+                   'Baja California Sur', 'Los Cabos', 'Los Cabos',1970, 9497,
+                   'Guerrero','Zihuatanejo de Azueta', 'Ixtapa-Zihuatanejo', 1970, 17873)
+
+cip <- cip %>% 
+  bind_rows(cips_70) %>% 
+  arrange(cip_nombre, anio) %>% 
   view()
 
-cip<- cip %>% 
-  group_by(cip_nombre) %>% 
-  mutate(crecimiento = (tam_pob/lag(tam_pob))-1 ) %>% 
-  group_by(cip_nombre) %>% 
-  transmute(cambio = round((tam_pob - lag(tam_pob)), 1) / lag(tam_pob) * 100) %>% View()
-view()
 
-ggplot(cip) +
+cip <- cip %>% 
+  group_by(cip) %>% 
+  mutate(crecimiento = ((pobtot - lag(pobtot)) / lag(pobtot)) * 100,
+         crecimiento = round(crecimiento, 1))
+
+dbWriteTable(conn = implan, 
+             name = Id (schema = 'coati_tablas_finales',
+                        table = 'a_cip'),
+             value = cip,
+             overwrite = T)
+
+
+# crecimiento: cuánto creció la población = tasa de variación porcentual entre un periodo y el periodo anterior
+
+
+(cip) +
   geom_line(aes(anio, 
                 tam_pob,
                 color = cip_nombre,
@@ -141,11 +252,11 @@ dbWriteTable(implan,
              overwrite = T)
 
 
-### Densidad poblacional por zona y comparación con AL y México -
+### Densidad poblacional por zona y comparación con AL y México ----
 densidad_poblacion <- read_csv(file = '/Users/Usuario/Documents/procesamiento-coati/datos/world_development_indicators/API_EN.POP.DNST_DS2_en_csv_v2_2718.csv',
                                skip = 4)
-                               
-                               
+
+
 densidad_region <- read_csv(file = '/Users/Usuario/Documents/procesamiento-coati/datos/world_development_indicators/Metadata_Country_API_EN.POP.DNST_DS2_en_csv_v2_2718.csv')
 
 
@@ -155,6 +266,11 @@ densidad_pob_AL <- densidad_poblacion %>%
   filter(Region == 'Latin America & Caribbean') %>% 
   select(`Country Code`, `Country Name`, `1990`, `2000`, `2010`, `2020`)  %>% 
   pivot_longer(cols = where(is.numeric))
+
+
+st_area(st_cast(read_sf(implan, Id(schema = 'base', table = 'limite_centro_poblacion')), 'POLYGON'))/10000
+
+911503/43765.82
 
 ## Tasa de crecimiento anual ----
 densidad_pob_AL <- densidad_pob_AL %>% 
@@ -245,10 +361,38 @@ tampobcun <-tribble(~entidad, ~anio, ~tampob,
                     'Cancún', '2000', 572973,
                     'Cancún', '2010', 661176,
                     'Cancún', '2020', 911503)
+
+176765
+
+tampobcun <- tribble(~entidad,       ~municipio,     ~anio, ~poblacion,
+                     'Quintana Roo', 'Benito Juárez', '1990', 176765,
+                     'Quintana Roo', 'Benito Juárez', '2000', 419815,
+                     'Quintana Roo', 'Benito Juárez', '2010', 661176,
+                     'Quintana Roo', 'Benito Juárez', '2020', 911503)
+
+# tampob los cabos
+tribble(~entidad,            ~anio, ~tampob,
+        'Los Cabos'         ,'1970', 9497,
+        'Los Cabos'         ,'2020', 351111,
+        'Loreto'            ,'1970', ,
+        'Loreto'            ,'2020', 18052,
+        'Ixtapa-Zihuatanejo','1970', 17873,
+        'Ixtapa-Zihuatanejo','2020', 126001,
+        'Bahías de Huatulco','1970', ,
+        'Bahías de Huatulco','2020', 50862) 
+
 dbWriteTable(implan, 
              name = Id (schema = 'coati_tablas_finales',
-                        table = ' aa_crecimiento_pob_cun'),
+                        table = 'aa_crecimiento_pob_cun'),
              value = tampobcun)
+
+dbSendQuery(implan, 'drop table coati_tablas_finales.aa_crecimiento_pob_cun')
+
+tampobcun %>% 
+  summarise(crecimiento_porcentual = ((911503- 117)/117)*100 )
+
+tampobcun %>% 
+  summarise(cuantas_veces_crecio = 911503/117)
 
 ### Tasa de crecimiento necesita tener inicios y finales para poder hacer un join -
 tasa_crecimiento <- tasa_crecimiento_poblacional_cancun %>%
@@ -290,7 +434,7 @@ migra <- censo_2020 %>%
   count(sexo, ent_pais_nac, wt = factor, name = "personas") %>%
   collect() 
 
-pais <- read_csv("datos/clasificaciones/ENT_PAIS.csv",
+pais <- read_csv("../procesamiento-coati/datos/cuestionarios_ampliados/2020/clasificaciones/ENT_PAIS.csv",
                  locale = locale(encoding = "latin1"))
 
 migra_entidad <- migra %>%
@@ -393,7 +537,8 @@ discapacitados <- supermanzanas %>%
 discapacitados %>% 
   st_drop_geometry() %>% 
   select(-id_sm) %>% 
-  transmutate(pcent)
+  summarise(popbtot_disc = sum(personas_discapacitadas, na.rm = T))
+
 
 st_write(obj = discapacitados, 
          dsn = implan, 
@@ -401,6 +546,9 @@ st_write(obj = discapacitados,
                      table = 'd_discapacidad'),
          delete_layer = T)
 
+censo_2020 %>% 
+  filter(ent == '23' & mun == '005') %>% 
+  mutate(discapacidad = case_when(dis_ver %in% c('')))
 
 ## Escolaridad -----
 ####  1990 
@@ -957,11 +1105,11 @@ derechohabiencia <- censo_2020 %>%
                values_to = "codigo") %>% 
   filter(!is.na(codigo)) %>% 
   mutate(factor = as.numeric(factor),
-         nombre_institucion = case_when(codigo %in% c(1, 5, 6) ~ 'IMSS',
-                                        codigo %in% c(2, 3) ~ 'ISSSTE',
-                                        codigo %in% c(4, 8) ~ 'Otra institución',
-                                        codigo == 7 ~ 'Seguro privado',
-                                        codigo == 9 ~ 'Sin afiliación',
+         nombre_institucion = case_when(codigo %in% c(01, 05, 06, 1, 5, 6) ~ 'IMSS',
+                                        codigo %in% c(02, 03, 2, 3) ~ 'ISSSTE',
+                                        codigo %in% c(04, 4, 8) ~ 'Otra institución',
+                                        codigo %in% c(07, 7) ~ 'Seguro privado',
+                                        codigo %in% c(09, 9) ~ 'Sin afiliación',
                                         codigo == 99 ~ 'No especificado')) %>% 
   group_by(ubicacion, nombre_institucion) %>% 
   summarise(personas = sum(factor, na.rm = TRUE)) %>%  
@@ -979,7 +1127,7 @@ dbWriteTable(conn = implan,
 
 ## Derechohabiencia por sector  ----
 
-dh <- censo_2020 %>% 
+censo_2020 %>% 
   filter(ent == '23', mun == '005') %>% 
   select(dhsersal1, dhsersal2, factor) %>%
   pivot_longer(!factor) %>% 
@@ -1002,13 +1150,12 @@ dh <- censo_2020 %>%
                                         name == 'dhsersal2' & value == 6 ~ 'IMSS-BIENESTAR (antes IMSS-PROSPERA)',
                                         name == 'dhsersal2' & value == 7 ~ 'Seguro privado',
                                         name == 'dhsersal2' & value == 8 ~ 'Otra institución'),
-         publico = case_when(nombre_institucion == 'Sin afiliación' ~ 'Sin afiliación',
-                             nombre_institucion == 'Seguro privado' ~ 'Seguro privado',
-                             nombre_institucion == 'Otra institución' ~ 'Otra institución',
-                             nombre_institucion == 'No especificado' ~ 'No especificado',
-                             TRUE ~ 'Público'))  %>% 
-  group_by(publico) %>% 
-  rename(afiliacion = publico) %>% 
+         afiliacion = case_when(nombre_institucion == 'Sin afiliación' ~ 'Sin afiliación',
+                                nombre_institucion == 'Seguro privado' ~ 'Seguro privado',
+                                nombre_institucion == 'Otra institución' ~ 'Otra institución',
+                                nombre_institucion == 'No especificado' ~ 'No especificado',
+                                TRUE ~ 'Público'))  %>% 
+  group_by(nombre_institucion) %>% 
   count(wt=factor) %>%
   ungroup() %>% 
   mutate(porcentajes = n / sum(n) * 100) %>% 
@@ -1493,7 +1640,10 @@ supermanzanas %>%
          p3hlinhe,
          geom) %>% 
   filter(!is.na(p3hlinhe)) 
-  
+
+# Pobreza y desigualdad ------
+
+
 
 
 
